@@ -1,0 +1,23 @@
+[
+    {
+        "date": "2014-11-19",
+        "time": "02:09:23",
+        "x-edge-location": "SIN2",
+        "sc-bytes": "369",
+        "c-ip": "175.143.38.71",
+        "cs-method": "GET",
+        "cs(Host)": "d1j642hg7oh3vx.cloudfront.net",
+        "cs-uri-stem": "\/view.gif",
+        "sc-status": "304",
+        "cs(Referer)": "-",
+        "cs(User-Agent)": "Mozilla\/5.0%2520(Macintosh;%2520Intel%2520Mac%2520OS%2520X%252010_9_5)%2520AppleWebKit\/537.36%2520(KHTML,%2520like%2520Gecko)%2520Chrome\/38.0.2125.122%2520Safari\/537.36",
+        "cs-uri-query": "-",
+        "cs(Cookie)": "-",
+        "x-edge-result-type": "Miss",
+        "x-edge-request-id": "BL-bNIOWFxRh0m1GQoYcIMUYi1C9Cvt-ceS_LMg5tNEMHwhX5ulg0g==",
+        "x-host-header": "d1j642hg7oh3vx.cloudfront.net",
+        "cs-protocol": "http",
+        "cs-bytes": "421",
+        "time-taken\n": "0.074\n"
+    }
+]

@@ -1,0 +1,306 @@
+<?php
+
+use App\PBLogs\Libraries\MapJSONUri,
+    Illuminate\Console\Command,
+    Illuminate\Support\Facades\App,
+    Illuminate\Support\Facades\Validator,
+    Symfony\Component\Console\Input\InputArgument,
+    Symfony\Component\Console\Input\InputOption;
+
+class HarvestActions extends Command
+{
+
+    private $bucket     = "trackings";
+    private $log_prefix = "action-logs";
+    private $s3, $limit      = 0, $delay      = 0, $counter    = 0;
+
+    /**
+     * The console command name.
+     *
+     * @var string
+     */
+    protected $name = 'actions:harvest';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Command description.';
+
+    /**
+     * Create a new command instance.
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+        try
+        {
+            $this->s3 = App::make('aws')->get('s3');
+            if (!\File::exists(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/"))) {
+                \File::makeDirectory(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/"));
+            }
+        }
+        catch (Exception $ex)
+        {
+            \Log::error($ex->getMessage());
+        }
+    }
+
+    /**
+     * Execute the console command.
+     *
+     * @return mixed
+     */
+    public function fire()
+    {
+//        $action_name = $this->argument("name");
+
+        $limit       = $this->option("limit");
+        $this->limit = isset($limit) ? $limit : 100;
+
+        $delay       = $this->option("delay");
+        $this->delay = isset($delay) ? $delay : 5;
+
+        $batch_counter = 0;
+
+        $this->info("Start to harvest with limit {$this->limit} and delay of each batch {$this->delay} second(s) ");
+
+        $objects = $this->getBucketObjects();
+        if ($objects) {
+            foreach ($objects as $obj) {
+                $this->comment("Object key: {$obj['Key']}. Downloading ...");
+
+                if ($this->downloadObject($obj['Key'])) {
+                    $array_keyname = explode("/", str_replace('.gz', '', $obj['Key']));
+                    $this->extractObject(storage_path("downloads/s3/{$this->bucket}/{$obj['Key']}"));
+
+                    //check if uncompressed file available
+                    if (\File::exists(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])))) {
+                        $this->info("Downloaded. File uncompressed. Saved as JSON.");
+                        $rows = $this->readFile(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
+                        \File::delete(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
+                    }
+
+                    //save to json
+                    file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $array_keyname[1] . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
+//                    $this->removeRemoteObject($obj['Key']); //remove the object in s3
+                    $this->info("{$this->counter} action(s) has been executed.");
+                }
+            }
+        }
+    }
+
+    /**
+     * Get the console command arguments.
+     *
+     * @return array
+     */
+    protected function getArguments()
+    {
+        return array(
+//            array('name', InputArgument::REQUIRED, 'The name of the action that you want to harvest.'),
+        );
+    }
+
+    /**
+     * Get the console command options.
+     *
+     * @return array
+     */
+    protected function getOptions()
+    {
+        return array(
+            array('limit', null, InputOption::VALUE_OPTIONAL, 'Limit of each batch will be process', null),
+            array('delay', null, InputOption::VALUE_OPTIONAL, 'Time in seconds of how long the delay between each batch', null),
+        );
+    }
+
+    private function getBucketObjects()
+    {
+        try
+        {
+            $iterator = $this->s3->getIterator("ListObjects", ['Bucket' => $this->bucket, 'Prefix' => $this->log_prefix]);
+            return $iterator;
+        }
+        catch (Exception $ex)
+        {
+            \Log::error($ex->getMessage());
+            return false;
+        }
+    }
+
+    private function extractObject($keyname)
+    {
+        // Raising this value may increase performance
+        $buffer_size   = 4096; // read 4kb at a time
+        $out_file_name = str_replace('.gz', '', $keyname);
+
+        // Open our files (in binary mode)
+        $file     = gzopen($keyname, 'rb');
+        $out_file = fopen($out_file_name, 'wb');
+
+        // Keep repeating until the end of the input file
+        while (!gzeof($file)) {
+            // Read buffer-size bytes
+            // Both fwrite and gzread and binary-safe
+            fwrite($out_file, gzread($file, $buffer_size));
+        }
+
+        // Files are done, close files
+        fclose($out_file);
+        gzclose($file);
+    }
+
+    private function downloadObject($key)
+    {
+        // Save object to a file.
+        $result = $this->s3->getObject(array(
+            'Bucket' => $this->bucket,
+            'Key'    => $key,
+            'SaveAs' => storage_path("downloads/s3/{$this->bucket}/{$key}")
+        ));
+
+        return ($result) ? true : false;
+    }
+
+    private function removeRemoteObject($key)
+    {
+        try
+        {
+            $result = $this->s3->deleteObject([
+                'Bucket' => $this->bucket,
+                'Key'    => $key
+            ]);
+
+            return ($result) ? true : false;
+        }
+        catch (Exception $ex)
+        {
+            \Log::error($ex->getMessage());
+            return false;
+        }
+    }
+
+    private function readFile($file_path)
+    {
+        $headers = [];
+        $rows    = [];
+        $counter = 0;
+        try
+        {
+            $fh = fopen($file_path, 'r');
+
+            while ($line = fgets($fh)) {
+                //check if comment
+
+                if (substr($line, 0, 1) == "#") {
+
+                    if ($counter === 1) {
+                        $row = explode(" ", $line);
+
+                        foreach ($row as $header) {
+                            if (substr($header, 0, 1) == "#")
+                                continue;
+
+                            array_push($headers, $header);
+                        }
+                    }
+                    $counter+=1;
+                    continue;
+                }
+
+                $row     = explode("\t", $line);
+                $combine = array_combine($headers, $row);
+                array_push($rows, $combine);
+
+                $counter+=1;
+
+                if (isset($combine['cs-uri-query']) && $combine['cs-uri-query'] !== "-") {
+                    $this->info($counter - 2 . ') ' . $combine['cs-uri-stem'] . ' => ' . $combine['cs-bytes'] . ' bytes');
+                    $this->processQueries($combine['cs-uri-query']);
+                }
+            }
+
+            $this->counter = ($counter <= 3) ? 1 : ($counter - 2);
+
+            fclose($fh);
+            return $rows;
+        }
+        catch (Exception $ex)
+        {
+            \Log::error($ex->getMessage());
+            return false;
+        }
+    }
+
+    private function processQueries($strQuery)
+    {
+        try
+        {
+            $mapJSONUri = new MapJSONUri();
+            $data       = $mapJSONUri->mapUriParamsToJSON($strQuery);
+            $this->_store($data);
+        }
+        catch (Exception $ex)
+        {
+            $this->info($ex->getMessage());
+        }
+    }
+
+    /**
+     * Queue the action
+     *
+     * Return void
+     */
+    private function _store($data)
+    {
+        $action_validator = Validator::make(['action' => $data->action], array("action" => "required"));
+        if ($action_validator->passes()) {
+
+            $browser_inputs = [
+                'tenant_id'  => (isset($data->tenant_id)) ? $data->tenant_id : null,
+                'api_key'    => (isset($data->api_key)) ? $data->api_key : null,
+                'user_id'    => (isset($data->user_id)) ? $data->user_id : null,
+                'session_id' => $data->session_id,
+                'browser_id' => $data->browser_id
+            ];
+
+            $rules = [
+                "tenant_id"  => "required",
+                "api_key"    => "required",
+                "session_id" => "required",
+                "items"      => "array"
+            ];
+
+            $inputs = array_merge($browser_inputs, [
+                'action' => get_object_vars($data->action),
+                'user'   => get_object_vars($data->user),
+                'items'  => []
+            ]);
+
+            foreach ($data->items as $obj) {
+                if (!is_null($obj)) {
+                    array_push($inputs['items'], get_object_vars($obj));
+                }
+            }
+
+            $input_validator = Validator::make($inputs, $rules);
+            if ($input_validator->passes()) {
+                /* queue data */
+                $queue_data['browser_inputs'] = $browser_inputs;
+                $queue_data['inputs']         = $inputs;
+                $queue_data['job_id']         = \Illuminate\Support\Str::random(10);
+                \Queue::push('App\Pongo\Queues\SendAction@store', $queue_data);
+            }
+            else
+                $this->info($input_validator->errors()->first());
+        }
+        else
+            $this->info($action_validator->errors()->first());
+        //return Response::json($response, $this->http_status);
+    }
+
+}
