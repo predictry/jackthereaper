@@ -20,7 +20,7 @@ class MapJSONUri
 
         $pair        = new ArrayObject(array(), ArrayObject::ARRAY_AS_PROPS);
         $pair->key   = $values[0];
-        $pair->value = $values[1];
+        $pair->value = urldecode($values[1]);
         return $pair;
     }
 
@@ -124,7 +124,7 @@ class MapJSONUri
 
             #decypher pair
             for ($i = 0; $i < count($data); $i++):
-                self::mapUriParamsToJSON($data[$i], $object, $call + 1);
+                self::mapUriParamsToJSON(urldecode($data[$i]), $object, $call + 1);
             endfor;
         else:
             //decode string
