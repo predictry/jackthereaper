@@ -64,8 +64,6 @@ class HarvestActions extends Command
         $delay       = $this->option("delay");
         $this->delay = isset($delay) ? $delay : 5;
 
-        $batch_counter = 0;
-
         $this->info("Start to harvest with limit {$this->limit} and delay of each batch {$this->delay} second(s) ");
 
         $objects = $this->getBucketObjects();
@@ -86,7 +84,7 @@ class HarvestActions extends Command
 
                     //save to json
                     file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $array_keyname[1] . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
-//                    $this->removeRemoteObject($obj['Key']); //remove the object in s3
+                    $this->removeRemoteObject($obj['Key']); //remove the object in s3
                     $this->info("{$this->counter} action(s) has been executed.");
                 }
             }
@@ -186,8 +184,7 @@ class HarvestActions extends Command
 
     private function readFile($file_path)
     {
-        $headers = [];
-        $rows    = [];
+        $headers = $rows    = [];
         $counter = 0;
         try
         {
@@ -242,6 +239,7 @@ class HarvestActions extends Command
         {
             $mapJSONUri = new MapJSONUri();
             $data       = $mapJSONUri->mapUriParamsToJSON($strQuery);
+            \Log::debug(json_encode($data));
             $this->_store($data);
         }
         catch (Exception $ex)
@@ -277,7 +275,7 @@ class HarvestActions extends Command
 
             $inputs = array_merge($browser_inputs, [
                 'action' => get_object_vars($data->action),
-                'user'   => get_object_vars($data->user),
+                'user'   => isset($data->user) ? get_object_vars($data->user) : [],
                 'items'  => []
             ]);
 
