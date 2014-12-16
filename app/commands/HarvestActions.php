@@ -4,7 +4,6 @@ use App\PBLogs\Libraries\MapJSONUri,
     Illuminate\Console\Command,
     Illuminate\Support\Facades\App,
     Illuminate\Support\Facades\Validator,
-    Symfony\Component\Console\Input\InputArgument,
     Symfony\Component\Console\Input\InputOption;
 
 class HarvestActions extends Command
@@ -85,10 +84,11 @@ class HarvestActions extends Command
                     //save to json
                     file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $array_keyname[1] . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
                     $this->removeRemoteObject($obj['Key']); //remove the object in s3
-                    $this->info("{$this->counter} action(s) has been executed.");
                 }
             }
         }
+
+        $this->info("{$this->counter} action(s) has been executed.");
     }
 
     /**
@@ -217,11 +217,11 @@ class HarvestActions extends Command
 
                 if (isset($combine['cs-uri-query']) && $combine['cs-uri-query'] !== "-") {
                     $this->info($counter - 2 . ') ' . $combine['cs-uri-stem'] . ' => ' . $combine['cs-bytes'] . ' bytes');
-                    $this->processQueries($combine['cs-uri-query']);
+                    $this->processQueries($combine['cs-uri-query'], $combine['date'], $combine['time']);
                 }
             }
 
-            $this->counter = ($counter <= 3) ? 1 : ($counter - 2);
+            $this->counter += ($counter <= 3) ? 1 : ($counter - 2);
 
             fclose($fh);
             return $rows;
@@ -233,14 +233,14 @@ class HarvestActions extends Command
         }
     }
 
-    private function processQueries($strQuery)
+    private function processQueries($strQuery, $date, $time)
     {
         try
         {
             $mapJSONUri = new MapJSONUri();
             $data       = $mapJSONUri->mapUriParamsToJSON($strQuery);
             \Log::debug(json_encode($data));
-            $this->_store($data);
+            $this->_store($data, $date, $time);
         }
         catch (Exception $ex)
         {
@@ -253,7 +253,7 @@ class HarvestActions extends Command
      *
      * Return void
      */
-    private function _store($data)
+    private function _store($data, $date, $time)
     {
         $action_validator = Validator::make(['action' => $data->action], array("action" => "required"));
         if ($action_validator->passes()) {
@@ -274,9 +274,11 @@ class HarvestActions extends Command
             ];
 
             $inputs = array_merge($browser_inputs, [
-                'action' => get_object_vars($data->action),
-                'user'   => isset($data->user) ? get_object_vars($data->user) : [],
-                'items'  => []
+                'action'              => get_object_vars($data->action),
+                'user'                => isset($data->user) ? get_object_vars($data->user) : [],
+                'items'               => [],
+                "log_date_created_at" => "{$date}",
+                "log_time_created_at" => "{$time}"
             ]);
 
             foreach ($data->items as $obj) {
