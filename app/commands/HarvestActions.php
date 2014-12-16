@@ -216,8 +216,8 @@ class HarvestActions extends Command
                 $counter+=1;
 
                 if (isset($combine['cs-uri-query']) && $combine['cs-uri-query'] !== "-") {
-                    $this->info($counter - 2 . ') ' . $combine['cs-uri-stem'] . ' => ' . $combine['cs-bytes'] . ' bytes');
-                    $this->processQueries($combine['cs-uri-query'], $combine['date'], $combine['time']);
+                    $this->info($counter - 2 . ') ' . str_replace("/", "", $combine['cs-uri-stem']) . ' => ' . $combine['cs-bytes'] . ' bytes');
+                    $this->processQueries($combine['cs-uri-query'], $combine['date'], $combine['time'], $combine);
                 }
             }
 
@@ -233,14 +233,13 @@ class HarvestActions extends Command
         }
     }
 
-    private function processQueries($strQuery, $date, $time)
+    private function processQueries($strQuery, $date, $time, $log_data = null)
     {
         try
         {
             $mapJSONUri = new MapJSONUri();
             $data       = $mapJSONUri->mapUriParamsToJSON($strQuery);
-            \Log::debug(json_encode($data));
-            $this->_store($data, $date, $time);
+            $this->_store($data, $date, $time, $log_data);
         }
         catch (Exception $ex)
         {
@@ -253,7 +252,7 @@ class HarvestActions extends Command
      *
      * Return void
      */
-    private function _store($data, $date, $time)
+    private function _store($data, $date, $time, $log_data = null)
     {
         $action_validator = Validator::make(['action' => $data->action], array("action" => "required"));
         if ($action_validator->passes()) {
@@ -281,10 +280,17 @@ class HarvestActions extends Command
                 "log_time_created_at" => "{$time}"
             ]);
 
-            foreach ($data->items as $obj) {
-                if (!is_null($obj)) {
-                    array_push($inputs['items'], get_object_vars($obj));
+            if (isset($data->items)) {
+                foreach ($data->items as $obj) {
+                    if (!is_null($obj)) {
+                        array_push($inputs['items'], get_object_vars($obj));
+                    }
                 }
+            }
+
+            if (!is_null($log_data)) {
+                $inputs['action']['cs-referer'] = $log_data['cs(Referer)'];
+                $inputs['action']['c-ip']       = $log_data['c-ip'];
             }
 
             $input_validator = Validator::make($inputs, $rules);
