@@ -216,7 +216,7 @@ class HarvestActions extends Command
                 $counter+=1;
 
                 if (isset($combine['cs-uri-query']) && $combine['cs-uri-query'] !== "-") {
-                    $this->info($counter - 2 . ') ' . str_replace("/", "", $combine['cs-uri-stem']) . ' => ' . $combine['cs-bytes'] . ' bytes');
+                    $this->info($counter - 2 . ') ' . str_replace("/", "", $combine['cs-uri-stem']) . ' => ' . $combine['cs-bytes'] . ' bytes | ' . "{$combine['date']} {$combine['time']}");
                     $this->processQueries($combine['cs-uri-query'], $combine['date'], $combine['time'], $combine);
                 }
             }
@@ -235,10 +235,10 @@ class HarvestActions extends Command
 
     private function processQueries($strQuery, $date, $time, $log_data = null)
     {
+        $mapJSONUri = new MapJSONUri();
         try
         {
-            $mapJSONUri = new MapJSONUri();
-            $data       = $mapJSONUri->mapUriParamsToJSON($strQuery);
+            $data = $mapJSONUri->mapUriParamsToJSON($strQuery);
             $this->_store($data, $date, $time, $log_data);
         }
         catch (Exception $ex)
@@ -261,8 +261,8 @@ class HarvestActions extends Command
                 'tenant_id'  => (isset($data->tenant_id)) ? $data->tenant_id : null,
                 'api_key'    => (isset($data->api_key)) ? $data->api_key : null,
                 'user_id'    => (isset($data->user_id)) ? $data->user_id : null,
-                'session_id' => $data->session_id,
-                'browser_id' => $data->browser_id
+                'session_id' => (isset($data->session_id)) ? $data->session_id : null,
+                'browser_id' => (isset($data->browser_id)) ? $data->browser_id : null
             ];
 
             $rules = [
@@ -274,7 +274,7 @@ class HarvestActions extends Command
 
             $inputs = array_merge($browser_inputs, [
                 'action'              => get_object_vars($data->action),
-                'user'                => isset($data->user) ? get_object_vars($data->user) : [],
+                'user'                => (isset($data->user) && !is_null($data->user)) ? get_object_vars($data->user) : [],
                 'items'               => [],
                 "log_date_created_at" => "{$date}",
                 "log_time_created_at" => "{$time}"
@@ -299,7 +299,18 @@ class HarvestActions extends Command
                 $queue_data['browser_inputs'] = $browser_inputs;
                 $queue_data['inputs']         = $inputs;
                 $queue_data['job_id']         = \Illuminate\Support\Str::random(10);
-                \Queue::push('App\Pongo\Queues\SendAction@store', $queue_data);
+
+                if (str_replace("/", "", $log_data['cs-uri-stem']) === "check_delete_item.gif") {
+
+                    if (isset($data->widget_instance_id)) {
+                        $queue_data['widget_instance_id'] = $data->widget_instance_id;
+                    }
+
+//                    $date = \Carbon\Carbon::now()->addMinutes(2);
+//                    \Queue::later($date, 'App\Pongo\Queues\CheckDeletion@fire', $queue_data);
+                }
+                else
+                    \Queue::push('App\Pongo\Queues\SendAction@store', $queue_data);
             }
             else
                 $this->info($input_validator->errors()->first());

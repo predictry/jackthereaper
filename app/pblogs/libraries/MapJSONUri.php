@@ -14,13 +14,20 @@ use ArrayObject;
 class MapJSONUri
 {
 
+    public static function encodeURIComponent($str)
+    {
+        $revert = array('%21' => '!', '%2A' => '*', '%26' => '&', '%27' => "'", '%28' => '(', '%29' => ')');
+        $pairs  = array_flip($revert);
+        return strtr(rawurlencode($str), $pairs);
+    }
+
     public static function decodeUriParam($value)
     {
         $values = explode("=", $value);
 
         $pair        = new ArrayObject(array(), ArrayObject::ARRAY_AS_PROPS);
         $pair->key   = $values[0];
-        $pair->value = urldecode($values[1]);
+        $pair->value = $values[1];
         return $pair;
     }
 
@@ -50,7 +57,7 @@ class MapJSONUri
             endforeach;
 
         else:
-            $map[] = $prefix . "=" . $data;
+            $map[] = $prefix . "=" . self::encodeURIComponent($data);
         endif;
 
         return implode("&", $map);
@@ -122,9 +129,13 @@ class MapJSONUri
             #first call. split string into pairs
             $data = explode("&", urldecode($data));
 
+            foreach ($data as $key => $val) {
+                $data[$key] = urldecode($val);
+            }
+
             #decypher pair
             for ($i = 0; $i < count($data); $i++):
-                self::mapUriParamsToJSON(urldecode($data[$i]), $object, $call + 1);
+                self::mapUriParamsToJSON($data[$i], $object, $call + 1);
             endfor;
         else:
             //decode string
