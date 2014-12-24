@@ -17,7 +17,7 @@ nbproject/project.properties
 /vendor
 composer.phar
 composer.lock
-.env.*.php
+.env.local.php
 .env.php
 app/storage/downloads
 

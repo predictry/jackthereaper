@@ -1,19 +1,18 @@
 <?php
 
-use App\PBLogs\Libraries\MapJSONUri,
+use App\Models\LogMigration,
+    App\PBLogs\Libraries\MapJSONUri,
     Illuminate\Console\Command,
     Illuminate\Support\Facades\App,
     Illuminate\Support\Facades\Validator,
-    Symfony\Component\Console\Input\InputOption,
-    Monolog\Logger,
-    Monolog\Handler\StreamHandler;
+    Symfony\Component\Console\Input\InputOption;
 
 class HarvestActions extends Command
 {
 
-    private $bucket     = "trackings";
-    private $log_prefix = "action-logs";
-    private $s3, $limit      = 0, $delay      = 0, $counter    = 0;
+    private $bucket         = "trackings-test";
+    private $log_prefix     = "action-logs";
+    private $s3, $limit          = 0, $delay          = 0, $counter        = 0, $counter_failed = 0, $batch          = 0;
 
     /**
      * The console command name.
@@ -43,6 +42,9 @@ class HarvestActions extends Command
             if (!\File::exists(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/"))) {
                 \File::makeDirectory(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/"));
             }
+
+            $last_batch  = LogMigration::max("batch");
+            $this->batch = $last_batch+=1;
         }
         catch (Exception $ex)
         {
@@ -71,12 +73,23 @@ class HarvestActions extends Command
         $objects = $this->getBucketObjects();
 
         if ($objects) {
+
             foreach ($objects as $obj) {
+                $array_keyname = explode("/", str_replace('.gz', '', $obj['Key']));
+                $file_name     = $array_keyname[1];
+
+                $is_log_exists = LogMigration::where("log_name", $file_name)->count();
                 $this->comment("Object key: {$obj['Key']}. Downloading ...");
                 try
                 {
-                    if ($this->downloadObject($obj['Key'])) {
-                        $array_keyname = explode("/", str_replace('.gz', '', $obj['Key']));
+                    if (!$is_log_exists && $this->downloadObject($obj['Key'])) {
+                        $this->counter        = $this->counter_failed = 0;
+
+                        $current_log_model = LogMigration::create([
+                                    'log_name' => $file_name,
+                                    'batch'    => $this->batch
+                        ]);
+
                         $this->extractObject(storage_path("downloads/s3/{$this->bucket}/{$obj['Key']}"));
 
                         //check if uncompressed file available
@@ -90,8 +103,17 @@ class HarvestActions extends Command
                         }
 
                         //save to json
-                        file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $array_keyname[1] . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
-                        $this->removeRemoteObject($obj['Key']); //remove the object in s3
+                        file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $file_name . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
+//                        $this->removeRemoteObject($obj['Key']); //remove the object in s3
+
+                        if ($current_log_model->id) {
+                            $current_log_model->total_logs           = $this->counter;
+                            $current_log_model->failed_executed_logs = $this->counter_failed;
+                            $current_log_model->update();
+                        }
+                    }
+                    else if ($is_log_exists) {
+                        $this->comment("Has been completed.");
                     }
                 }
                 catch (Exception $ex)
@@ -250,11 +272,13 @@ class HarvestActions extends Command
         {
             $data = $mapJSONUri->mapUriParamsToJSON($strQuery);
             $this->_store($data, $log_data['date'], $log_data['time'], $log_data);
+            $this->info($this->counter . ') ' . str_replace("/", "", $log_data['cs-uri-stem']) . ' => ' . $log_data['cs-bytes'] . ' bytes | ' . "{$log_data['date']} {$log_data['time']}"); //CONSOLE MSG 3
         }
         catch (Exception $ex)
         {
             $this->counter-=1;
-            $this->info($ex->getMessage());
+            $this->counter_failed += 1;
+            $this->error($this->counter . ') ' . str_replace("/", "", $log_data['cs-uri-stem']) . ' => ' . $log_data['cs-bytes'] . ' bytes | ' . "{$log_data['date']} {$log_data['time']} >>> {$ex->getMessage()}"); //CONSOLE MSG 4
         }
     }
 
@@ -326,7 +350,6 @@ class HarvestActions extends Command
 
                 if ($log_data) {
                     $this->counter+=1;
-                    $this->info($this->counter . ') ' . str_replace("/", "", $log_data['cs-uri-stem']) . ' => ' . $log_data['cs-bytes'] . ' bytes | ' . "{$log_data['date']} {$log_data['time']}"); //CONSOLE MSG 3
                 }
             }
             else
