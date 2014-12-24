@@ -4,12 +4,14 @@ use App\PBLogs\Libraries\MapJSONUri,
     Illuminate\Console\Command,
     Illuminate\Support\Facades\App,
     Illuminate\Support\Facades\Validator,
-    Symfony\Component\Console\Input\InputOption;
+    Symfony\Component\Console\Input\InputOption,
+    Monolog\Logger,
+    Monolog\Handler\StreamHandler;
 
 class HarvestActions extends Command
 {
 
-    private $bucket     = "trackings";
+    private $bucket     = "trackings-test";
     private $log_prefix = "action-logs";
     private $s3, $limit      = 0, $delay      = 0, $counter    = 0;
 
@@ -63,27 +65,38 @@ class HarvestActions extends Command
         $delay       = $this->option("delay");
         $this->delay = isset($delay) ? $delay : 5;
 
+        //CONSOLE MSG 1
         $this->info("Start to harvest with limit {$this->limit} and delay of each batch {$this->delay} second(s) ");
 
         $objects = $this->getBucketObjects();
+
         if ($objects) {
             foreach ($objects as $obj) {
                 $this->comment("Object key: {$obj['Key']}. Downloading ...");
+                try
+                {
+                    if ($this->downloadObject($obj['Key'])) {
+                        $array_keyname = explode("/", str_replace('.gz', '', $obj['Key']));
+                        $this->extractObject(storage_path("downloads/s3/{$this->bucket}/{$obj['Key']}"));
 
-                if ($this->downloadObject($obj['Key'])) {
-                    $array_keyname = explode("/", str_replace('.gz', '', $obj['Key']));
-                    $this->extractObject(storage_path("downloads/s3/{$this->bucket}/{$obj['Key']}"));
+                        //check if uncompressed file available
+                        if (\File::exists(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])))) {
 
-                    //check if uncompressed file available
-                    if (\File::exists(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])))) {
-                        $this->info("Downloaded. File uncompressed. Saved as JSON.");
-                        $rows = $this->readFile(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
-                        \File::delete(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
+                            //CONSOLE MSG 2
+                            $this->info("Downloaded. File uncompressed. Saved as JSON.");
+
+                            $rows = $this->readFile(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
+                            \File::delete(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
+                        }
+
+                        //save to json
+                        file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $array_keyname[1] . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
+                        $this->removeRemoteObject($obj['Key']); //remove the object in s3
                     }
-
-                    //save to json
-                    file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $array_keyname[1] . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
-                    $this->removeRemoteObject($obj['Key']); //remove the object in s3
+                }
+                catch (Exception $ex)
+                {
+                    $this->info($ex->getMessage());
                 }
             }
         }
@@ -215,13 +228,10 @@ class HarvestActions extends Command
 
                 $counter+=1;
 
-                if (isset($combine['cs-uri-query']) && $combine['cs-uri-query'] !== "-") {
-                    $this->info($counter - 2 . ') ' . str_replace("/", "", $combine['cs-uri-stem']) . ' => ' . $combine['cs-bytes'] . ' bytes | ' . "{$combine['date']} {$combine['time']}");
-                    $this->processQueries($combine['cs-uri-query'], $combine['date'], $combine['time'], $combine);
+                if (isset($combine['cs-uri-query']) && $combine['cs-uri-query'] !== "-" && $combine['date'] && $combine['time']) {
+                    $this->processQueries($combine['cs-uri-query'], $combine);
                 }
             }
-
-            $this->counter += ($counter <= 3) ? 1 : ($counter - 2);
 
             fclose($fh);
             return $rows;
@@ -233,16 +243,17 @@ class HarvestActions extends Command
         }
     }
 
-    private function processQueries($strQuery, $date, $time, $log_data = null)
+    private function processQueries($strQuery, $log_data)
     {
         $mapJSONUri = new MapJSONUri();
         try
         {
             $data = $mapJSONUri->mapUriParamsToJSON($strQuery);
-            $this->_store($data, $date, $time, $log_data);
+            $this->_store($data, $log_data['date'], $log_data['time'], $log_data);
         }
         catch (Exception $ex)
         {
+            $this->counter-=1;
             $this->info($ex->getMessage());
         }
     }
@@ -304,13 +315,19 @@ class HarvestActions extends Command
 
                     if (isset($data->widget_instance_id)) {
                         $queue_data['widget_instance_id'] = $data->widget_instance_id;
+                        $queue_data['item_id']            = $data->item_id;
                     }
-
-//                    $date = \Carbon\Carbon::now()->addMinutes(2);
-//                    \Queue::later($date, 'App\Pongo\Queues\CheckDeletion@fire', $queue_data);
+                    $date = \Carbon\Carbon::now()->addMinutes(3);
+                    \Queue::later($date, 'App\Pongo\Queues\CheckDeletion@fire', $queue_data);
+                    \Log::info("App\Pongo\Queues\CheckDeletion@fire", $queue_data);
                 }
                 else
                     \Queue::push('App\Pongo\Queues\SendAction@store', $queue_data);
+
+                if ($log_data) {
+                    $this->counter+=1;
+                    $this->info($this->counter . ') ' . str_replace("/", "", $log_data['cs-uri-stem']) . ' => ' . $log_data['cs-bytes'] . ' bytes | ' . "{$log_data['date']} {$log_data['time']}"); //CONSOLE MSG 3
+                }
             }
             else
                 $this->info($input_validator->errors()->first());
