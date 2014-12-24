@@ -10,9 +10,8 @@ use App\Models\LogMigration,
 class HarvestActions extends Command
 {
 
-    private $bucket         = "trackings-test";
-    private $log_prefix     = "action-logs";
-    private $s3, $limit          = 0, $delay          = 0, $counter        = 0, $counter_failed = 0, $batch          = 0;
+    private $bucket         = "", $log_prefix     = "";
+    private $s3, $limit          = 0, $delay          = 0, $total_counter  = 0, $counter        = 0, $counter_failed = 0, $batch          = 0;
 
     /**
      * The console command name.
@@ -36,6 +35,9 @@ class HarvestActions extends Command
     public function __construct()
     {
         parent::__construct();
+
+        $this->bucket     = $_ENV['TRACKING_BUCKET'];
+        $this->log_prefix = $_ENV['TRACKING_BUCKET_ACCESS_LOGS'];
         try
         {
             $this->s3 = App::make('aws')->get('s3');
@@ -110,6 +112,8 @@ class HarvestActions extends Command
                             $current_log_model->total_logs           = $this->counter;
                             $current_log_model->failed_executed_logs = $this->counter_failed;
                             $current_log_model->update();
+
+                            $this->total_counter+=$this->counter;
                         }
                     }
                     else if ($is_log_exists) {
