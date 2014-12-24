@@ -131,7 +131,7 @@ class HarvestActions extends Command
                     $this->info("Status: {$this->counter} action(s) has been executed.");
                 }
                 else {
-                    $this->warning("Status: No log at the moment. Try again in a minute.");
+                    $this->comment("Status: No log at the moment. Try again in a minute.");
                     break;
                 }
             }
