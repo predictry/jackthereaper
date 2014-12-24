@@ -70,64 +70,72 @@ class HarvestActions extends Command
         $this->delay = isset($delay) ? $delay : 5;
 
         //CONSOLE MSG 1
-        $this->info("Start to harvest with limit {$this->limit} and delay of each batch {$this->delay} second(s) ");
+//        $this->info("Start to harvest with limit {$this->limit} and delay of each batch {$this->delay} second(s) ");
+        $this->info("Start to harvest.");
 
         $objects = $this->getBucketObjects();
 
         if ($objects) {
 
             foreach ($objects as $obj) {
+
                 $array_keyname = explode("/", str_replace('.gz', '', $obj['Key']));
-                $file_name     = $array_keyname[1];
+                $file_name     = isset($array_keyname[1]) ? $array_keyname[1] : '';
 
-                $is_log_exists = LogMigration::where("log_name", $file_name)->count();
-                $this->comment("Object key: {$obj['Key']}. Downloading ...");
-                try
-                {
-                    if (!$is_log_exists && $this->downloadObject($obj['Key'])) {
-                        $this->counter        = $this->counter_failed = 0;
+                if (count($array_keyname) > 1 && $file_name !== "") {
+                    $is_log_exists = LogMigration::where("log_name", $file_name)->count();
+                    $this->comment("Object key: {$obj['Key']}. Downloading ...");
+                    try
+                    {
+                        if (!$is_log_exists && $this->downloadObject($obj['Key'])) {
+                            $this->counter        = $this->counter_failed = 0;
 
-                        $current_log_model = LogMigration::create([
-                                    'log_name' => $file_name,
-                                    'batch'    => $this->batch
-                        ]);
+                            $current_log_model = LogMigration::create([
+                                        'log_name' => $file_name,
+                                        'batch'    => $this->batch
+                            ]);
 
-                        $this->extractObject(storage_path("downloads/s3/{$this->bucket}/{$obj['Key']}"));
+                            $this->extractObject(storage_path("downloads/s3/{$this->bucket}/{$obj['Key']}"));
 
-                        //check if uncompressed file available
-                        if (\File::exists(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])))) {
+                            //check if uncompressed file available
+                            if (\File::exists(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])))) {
 
-                            //CONSOLE MSG 2
-                            $this->info("Downloaded. File uncompressed. Saved as JSON.");
+                                //CONSOLE MSG 2
+                                $this->info("Downloaded. File uncompressed. Saved as JSON.");
 
-                            $rows = $this->readFile(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
-                            \File::delete(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
+                                $rows = $this->readFile(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
+                                \File::delete(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
+                            }
+
+                            //save to json
+                            file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $file_name . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
+                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
+
+                            if ($current_log_model->id) {
+                                $current_log_model->total_logs           = $this->counter;
+                                $current_log_model->failed_executed_logs = $this->counter_failed;
+                                $current_log_model->update();
+
+                                $this->total_counter+=$this->counter;
+                            }
                         }
-
-                        //save to json
-                        file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $file_name . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
-//                        $this->removeRemoteObject($obj['Key']); //remove the object in s3
-
-                        if ($current_log_model->id) {
-                            $current_log_model->total_logs           = $this->counter;
-                            $current_log_model->failed_executed_logs = $this->counter_failed;
-                            $current_log_model->update();
-
-                            $this->total_counter+=$this->counter;
+                        else if ($is_log_exists) {
+                            $this->info("Status: Has been completed.");
                         }
                     }
-                    else if ($is_log_exists) {
-                        $this->comment("Has been completed.");
+                    catch (Exception $ex)
+                    {
+                        $this->info($ex->getMessage());
                     }
+
+                    $this->info("Status: {$this->counter} action(s) has been executed.");
                 }
-                catch (Exception $ex)
-                {
-                    $this->info($ex->getMessage());
+                else {
+                    $this->warning("Status: No log at the moment. Try again in a minute.");
+                    break;
                 }
             }
         }
-
-        $this->info("{$this->counter} action(s) has been executed.");
     }
 
     /**
