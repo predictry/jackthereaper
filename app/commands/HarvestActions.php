@@ -11,7 +11,7 @@ use App\PBLogs\Libraries\MapJSONUri,
 class HarvestActions extends Command
 {
 
-    private $bucket     = "trackings-test";
+    private $bucket     = "trackings";
     private $log_prefix = "action-logs";
     private $s3, $limit      = 0, $delay      = 0, $counter    = 0;
 
