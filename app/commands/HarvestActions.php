@@ -10,7 +10,7 @@ use App\Models\LogMigration,
 class HarvestActions extends Command
 {
 
-    private $bucket         = "", $log_prefix     = "";
+    private $bucket         = "", $log_prefix     = "", $job_id         = "";
     private $s3, $limit          = 0, $delay          = 0, $total_counter  = 0, $counter        = 0, $counter_failed = 0, $batch          = 0, $queue_counter  = 0;
     private $queue_stack    = [];
     private $max_stack_size = 150; //remember max : 256KB. Average 150 logs is 180 KB
@@ -38,8 +38,8 @@ class HarvestActions extends Command
     {
         parent::__construct();
 
-        $this->bucket         = $_ENV['TRACKING_BUCKET'];
-        $this->log_prefix     = $_ENV['TRACKING_BUCKET_ACCESS_LOGS'];
+        $this->bucket     = $_ENV['TRACKING_BUCKET'];
+        $this->log_prefix = $_ENV['TRACKING_BUCKET_ACCESS_LOGS'];
 
         try
         {
@@ -268,8 +268,9 @@ class HarvestActions extends Command
                     continue;
                 }
 
-                $row     = explode("\t", $line);
-                $combine = array_combine($headers, $row);
+                $row           = explode("\t", $line);
+                $row['job_id'] = $this->job_id  = \Illuminate\Support\Str::random(10);
+                $combine       = array_combine($headers, $row);
                 array_push($rows, $combine);
 
                 $counter+=1;
@@ -357,7 +358,7 @@ class HarvestActions extends Command
                 /* queue data */
                 $queue_data['browser_inputs'] = $browser_inputs;
                 $queue_data['inputs']         = $inputs;
-                $queue_data['job_id']         = \Illuminate\Support\Str::random(10);
+                $queue_data['job_id']         = $this->job_id;
 
                 if (str_replace("/", "", $log_data['cs-uri-stem']) === "check_delete_item.gif") {
 
