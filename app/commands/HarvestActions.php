@@ -112,7 +112,7 @@ class HarvestActions extends Command
 
                             //save to json
                             file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $file_name . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
-//                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
+                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
 
                             if ($current_log_model->id) {
                                 $current_log_model->total_logs           = $this->counter;
