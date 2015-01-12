@@ -112,7 +112,7 @@ class HarvestActions extends Command
 
                             //save to json
                             file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $file_name . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
-                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
+//                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
 
                             if ($current_log_model->id) {
                                 $current_log_model->total_logs           = $this->counter;
@@ -268,9 +268,10 @@ class HarvestActions extends Command
                     continue;
                 }
 
-                $row           = explode("\t", $line);
-                $row['job_id'] = $this->job_id  = \Illuminate\Support\Str::random(10);
-                $combine       = array_combine($headers, $row);
+                $row          = explode("\t", $line);
+                $this->job_id = \Illuminate\Support\Str::random(10);
+                $combine      = array_combine($headers, $row);
+                $combine      = array_merge($combine, ['job_id' => $this->job_id]);
                 array_push($rows, $combine);
 
                 $counter+=1;
