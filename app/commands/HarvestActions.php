@@ -11,7 +11,9 @@ class HarvestActions extends Command
 {
 
     private $bucket         = "", $log_prefix     = "";
-    private $s3, $limit          = 0, $delay          = 0, $total_counter  = 0, $counter        = 0, $counter_failed = 0, $batch          = 0;
+    private $s3, $limit          = 0, $delay          = 0, $total_counter  = 0, $counter        = 0, $counter_failed = 0, $batch          = 0, $queue_counter  = 0;
+    private $queue_stack    = [];
+    private $max_stack_size = 150; //remember max : 256KB. Average 150 logs is 180 KB
 
     /**
      * The console command name.
@@ -36,8 +38,9 @@ class HarvestActions extends Command
     {
         parent::__construct();
 
-        $this->bucket     = $_ENV['TRACKING_BUCKET'];
-        $this->log_prefix = $_ENV['TRACKING_BUCKET_ACCESS_LOGS'];
+        $this->bucket         = $_ENV['TRACKING_BUCKET'];
+        $this->log_prefix     = $_ENV['TRACKING_BUCKET_ACCESS_LOGS'];
+
         try
         {
             $this->s3 = App::make('aws')->get('s3');
@@ -74,7 +77,7 @@ class HarvestActions extends Command
         $this->info("Start to harvest.");
 
         $objects = $this->getBucketObjects();
-
+        $attemps = 1;
         if ($objects) {
 
             foreach ($objects as $obj) {
@@ -118,6 +121,12 @@ class HarvestActions extends Command
 
                                 $this->total_counter+=$this->counter;
                             }
+
+                            if (count($this->queue_stack)) {
+                                \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
+                            }
+
+                            $this->queue_stack = [];
                         }
                         else if ($is_log_exists) {
                             $this->info("Status: Has been completed.");
@@ -130,9 +139,12 @@ class HarvestActions extends Command
 
                     $this->info("Status: {$this->counter} action(s) has been executed.");
                 }
-                else {
+                else if ($attemps >= 2) {
                     $this->comment("Status: No log at the moment. Try again in a minute.");
                     break;
+                }
+                else {
+                    $attemps +=1;
                 }
             }
         }
@@ -357,8 +369,14 @@ class HarvestActions extends Command
                     \Queue::later($date, 'App\Pongo\Queues\CheckDeletion@fire', $queue_data);
                     \Log::info("App\Pongo\Queues\CheckDeletion@fire", $queue_data);
                 }
-                else
-                    \Queue::push('App\Pongo\Queues\SendAction@store', $queue_data);
+                else {
+                    if (count($this->queue_stack) >= $this->max_stack_size) {
+                        \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
+                        $this->queue_stack = [];
+                    }
+
+                    array_push($this->queue_stack, $queue_data);
+                }
 
                 if ($log_data) {
                     $this->counter+=1;
