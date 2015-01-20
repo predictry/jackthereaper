@@ -80,6 +80,15 @@ class HarvestActions extends Command
         $attemps = 1;
         if ($objects) {
 
+            //            foreach ($objects as $obj) {
+//                $array_keyname = explode("/", $obj['Key']);
+//                $file_name     = isset($array_keyname[1]) ? $array_keyname[1] : '';
+//
+//                if (count($array_keyname) > 1 && $file_name !== "") {
+//                    Queue::push('processLog', array('full_path' => "{$_ENV['TRACKING_BUCKET']}/{$_ENV['TRACKING_BUCKET_ACCESS_LOGS']}/" . $file_name, "log_name" => $file_name));
+//                }
+//            }
+
             foreach ($objects as $obj) {
 
                 $array_keyname = explode("/", str_replace('.gz', '', $obj['Key']));
@@ -112,7 +121,7 @@ class HarvestActions extends Command
 
                             //save to json
                             file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $file_name . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
-                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
+//                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
 
                             if ($current_log_model->id) {
                                 $current_log_model->total_logs           = $this->counter;
@@ -122,9 +131,9 @@ class HarvestActions extends Command
                                 $this->total_counter+=$this->counter;
                             }
 
-                            if (count($this->queue_stack)) {
-                                \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
-                            }
+//                            if (count($this->queue_stack)) {
+//                                \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
+//                            }
 
                             $this->queue_stack = [];
                         }
@@ -299,12 +308,14 @@ class HarvestActions extends Command
             $data = $mapJSONUri->mapUriParamsToJSON($strQuery);
             $this->_store($data, $log_data['date'], $log_data['time'], $log_data);
             $this->info($this->counter . ') ' . str_replace("/", "", $log_data['cs-uri-stem']) . ' => ' . $log_data['cs-bytes'] . ' bytes | ' . "{$log_data['date']} {$log_data['time']}"); //CONSOLE MSG 3
+            \Log::info($strQuery);
         }
         catch (Exception $ex)
         {
             $this->counter-=1;
             $this->counter_failed += 1;
             $this->error($this->counter . ') ' . str_replace("/", "", $log_data['cs-uri-stem']) . ' => ' . $log_data['cs-bytes'] . ' bytes | ' . "{$log_data['date']} {$log_data['time']} >>> {$ex->getMessage()}"); //CONSOLE MSG 4
+            \Log::info($strQuery);
         }
     }
 
@@ -343,8 +354,26 @@ class HarvestActions extends Command
 
             if (isset($data->items)) {
                 foreach ($data->items as $obj) {
-                    if (!is_null($obj)) {
-                        array_push($inputs['items'], get_object_vars($obj));
+                    if (is_object($obj)) {
+                        //turn to array
+                        $temp_obj = $obj;
+                        $arr_obj  = (array) $temp_obj;
+
+                        if (is_array($arr_obj) && count($arr_obj) > 0) {
+
+                            $arr_item = current($arr_obj);
+
+                            if (is_array($arr_item)) {
+                                foreach ($arr_item as $obj2) {
+                                    $vars = get_object_vars($obj2);
+                                }
+                            }
+                            else {
+                                $vars = get_object_vars($obj);
+                            }
+
+                            array_push($inputs['items'], $vars);
+                        }
                     }
                 }
             }
@@ -372,10 +401,10 @@ class HarvestActions extends Command
                     \Log::info("App\Pongo\Queues\CheckDeletion@fire", $queue_data);
                 }
                 else {
-                    if (count($this->queue_stack) >= $this->max_stack_size) {
-                        \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
-                        $this->queue_stack = [];
-                    }
+//                    if (count($this->queue_stack) >= $this->max_stack_size) {
+//                        \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
+//                        $this->queue_stack = [];
+//                    }
 
                     array_push($this->queue_stack, $queue_data);
                 }
