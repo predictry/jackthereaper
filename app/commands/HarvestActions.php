@@ -121,7 +121,7 @@ class HarvestActions extends Command
 
                             //save to json
                             file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $file_name . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
-//                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
+                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
 
                             if ($current_log_model->id) {
                                 $current_log_model->total_logs           = $this->counter;
@@ -131,9 +131,9 @@ class HarvestActions extends Command
                                 $this->total_counter+=$this->counter;
                             }
 
-//                            if (count($this->queue_stack)) {
-//                                \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
-//                            }
+                            if (count($this->queue_stack)) {
+                                \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
+                            }
 
                             $this->queue_stack = [];
                         }
@@ -308,7 +308,6 @@ class HarvestActions extends Command
             $data = $mapJSONUri->mapUriParamsToJSON($strQuery);
             $this->_store($data, $log_data['date'], $log_data['time'], $log_data);
             $this->info($this->counter . ') ' . str_replace("/", "", $log_data['cs-uri-stem']) . ' => ' . $log_data['cs-bytes'] . ' bytes | ' . "{$log_data['date']} {$log_data['time']}"); //CONSOLE MSG 3
-            \Log::info($strQuery);
         }
         catch (Exception $ex)
         {
@@ -401,12 +400,16 @@ class HarvestActions extends Command
                     \Log::info("App\Pongo\Queues\CheckDeletion@fire", $queue_data);
                 }
                 else {
-//                    if (count($this->queue_stack) >= $this->max_stack_size) {
-//                        \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
-//                        $this->queue_stack = [];
-//                    }
+                    if (count($this->queue_stack) >= $this->max_stack_size) {
+                        \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
+                        $this->queue_stack = [];
+                    }
 
                     array_push($this->queue_stack, $queue_data);
+                }
+
+                if (str_replace("/", "", $log_data['cs-uri-stem']) === "started_checkout.gif" || str_replace("/", "", $log_data['cs-uri-stem']) === "buy.gif") {
+                    \Log::info(json_encode($queue_data));
                 }
 
                 if ($log_data) {
