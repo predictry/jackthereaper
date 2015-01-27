@@ -72,7 +72,7 @@ class HarvestActions extends Command
         $delay       = $this->option("delay");
         $this->delay = isset($delay) ? $delay : 5;
 
-        //CONSOLE MSG 1
+//CONSOLE MSG 1
 //        $this->info("Start to harvest with limit {$this->limit} and delay of each batch {$this->delay} second(s) ");
         $this->info("Start to harvest.");
 
@@ -80,7 +80,7 @@ class HarvestActions extends Command
         $attemps = 1;
         if ($objects) {
 
-            //            foreach ($objects as $obj) {
+//            foreach ($objects as $obj) {
 //                $array_keyname = explode("/", $obj['Key']);
 //                $file_name     = isset($array_keyname[1]) ? $array_keyname[1] : '';
 //
@@ -109,31 +109,30 @@ class HarvestActions extends Command
 
                             $this->extractObject(storage_path("downloads/s3/{$this->bucket}/{$obj['Key']}"));
 
-                            //check if uncompressed file available
+//check if uncompressed file available
                             if (\File::exists(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])))) {
 
-                                //CONSOLE MSG 2
+//CONSOLE MSG 2
                                 $this->info("Downloaded. File uncompressed. Saved as JSON.");
 
                                 $rows = $this->readFile(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
                                 \File::delete(storage_path("downloads/s3/{$this->bucket}/" . str_replace('.gz', '', $obj['Key'])));
                             }
 
-                            //save to json
+//save to json
                             file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $file_name . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
-                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
-
-                            if ($current_log_model->id) {
-                                $current_log_model->total_logs           = $this->counter;
-                                $current_log_model->failed_executed_logs = $this->counter_failed;
-                                $current_log_model->update();
-
-                                $this->total_counter+=$this->counter;
-                            }
-
-                            if (count($this->queue_stack)) {
-                                \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
-                            }
+//                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
+//                            if ($current_log_model->id) {
+//                                $current_log_model->total_logs           = $this->counter;
+//                                $current_log_model->failed_executed_logs = $this->counter_failed;
+//                                $current_log_model->update();
+//
+//                                $this->total_counter+=$this->counter;
+//                            }
+//
+//                            if (count($this->queue_stack)) {
+//                                \Queue::push('App\Pongo\Queues\SendAction@store', $this->queue_stack);
+//                            }
 
                             $this->queue_stack = [];
                         }
@@ -200,29 +199,29 @@ class HarvestActions extends Command
 
     private function extractObject($keyname)
     {
-        // Raising this value may increase performance
+// Raising this value may increase performance
         $buffer_size   = 4096; // read 4kb at a time
         $out_file_name = str_replace('.gz', '', $keyname);
 
-        // Open our files (in binary mode)
+// Open our files (in binary mode)
         $file     = gzopen($keyname, 'rb');
         $out_file = fopen($out_file_name, 'wb');
 
-        // Keep repeating until the end of the input file
+// Keep repeating until the end of the input file
         while (!gzeof($file)) {
-            // Read buffer-size bytes
-            // Both fwrite and gzread and binary-safe
+// Read buffer-size bytes
+// Both fwrite and gzread and binary-safe
             fwrite($out_file, gzread($file, $buffer_size));
         }
 
-        // Files are done, close files
+// Files are done, close files
         fclose($out_file);
         gzclose($file);
     }
 
     private function downloadObject($key)
     {
-        // Save object to a file.
+// Save object to a file.
         $result = $this->s3->getObject(array(
             'Bucket' => $this->bucket,
             'Key'    => $key,
@@ -259,7 +258,7 @@ class HarvestActions extends Command
             $fh = fopen($file_path, 'r');
 
             while ($line = fgets($fh)) {
-                //check if comment
+//check if comment
 
                 if (substr($line, 0, 1) == "#") {
 
@@ -306,7 +305,12 @@ class HarvestActions extends Command
         try
         {
             $data = $mapJSONUri->mapUriParamsToJSON($strQuery);
-            $this->_store($data, $log_data['date'], $log_data['time'], $log_data);
+
+            if (is_object($data) && isset($data->tenant_id)) {
+                \Log::info("bukalapak action: {$data->action->name}" . " | date/time: {$log_data['date']} {$log_data['time']}");
+            }
+
+//            $this->_store($data, $log_data['date'], $log_data['time'], $log_data);
             $this->info($this->counter . ') ' . str_replace("/", "", $log_data['cs-uri-stem']) . ' => ' . $log_data['cs-bytes'] . ' bytes | ' . "{$log_data['date']} {$log_data['time']}"); //CONSOLE MSG 3
         }
         catch (Exception $ex)
@@ -314,7 +318,7 @@ class HarvestActions extends Command
             $this->counter-=1;
             $this->counter_failed += 1;
             $this->error($this->counter . ') ' . str_replace("/", "", $log_data['cs-uri-stem']) . ' => ' . $log_data['cs-bytes'] . ' bytes | ' . "{$log_data['date']} {$log_data['time']} >>> {$ex->getMessage()}"); //CONSOLE MSG 4
-            \Log::info($strQuery);
+//            \Log::info($strQuery);
         }
     }
 
@@ -409,7 +413,7 @@ class HarvestActions extends Command
                 }
 
                 if (str_replace("/", "", $log_data['cs-uri-stem']) === "started_checkout.gif" || str_replace("/", "", $log_data['cs-uri-stem']) === "buy.gif") {
-                    \Log::info(json_encode($queue_data));
+//                    \Log::info(json_encode($queue_data));
                 }
 
                 if ($log_data) {
