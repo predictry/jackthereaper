@@ -306,7 +306,7 @@ class HarvestActions extends Command
         {
             $data = $mapJSONUri->mapUriParamsToJSON($strQuery);
 
-            if (is_object($data) && isset($data->tenant_id)) {
+            if (is_object($data) && isset($data->tenant_id) && ($data->tenant_id === 'bukalapak')) {
                 \Log::info("bukalapak action: {$data->action->name}" . " | date/time: {$log_data['date']} {$log_data['time']}");
             }
 
