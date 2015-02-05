@@ -11,4 +11,5 @@
   |
  */
 
-Artisan::add(new HarvestActions);
+//Artisan::add(new HarvestActions);
+Artisan::add(new HarvestLogs);
