@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\LogMigration2,
-    Illuminate\Console\Command;
+    Carbon\Carbon,
+    Illuminate\Console\Command,
+    Illuminate\Support\Facades\DB;
 
 class HarvestLogs extends Command
 {
@@ -35,8 +37,8 @@ class HarvestLogs extends Command
         try
         {
             $this->s3         = App::make('aws')->get('s3');
-            $this->bucket     = $_ENV['TRACKING_BUCKET'];
-            $this->log_prefix = $_ENV['TRACKING_BUCKET_ACCESS_LOGS'];
+            $this->bucket     = getenv('TRACKING_BUCKET');
+            $this->log_prefix = getenv('TRACKING_BUCKET_ACCESS_LOGS');
 
 
             $last_batch  = LogMigration2::max("batch");
@@ -69,7 +71,7 @@ class HarvestLogs extends Command
                 if (count($key_names) > 0 && ($key_names[1] !== "")) {
 
                     $file_name = $key_names[1];
-                    $full_path = getenv('TRACKING_BUCKET') . "/" . getenv('TRACKING_BUCKET_ACCESS_LOGS') . "/" . $file_name;
+                    $full_path = $this->bucket . "/" . $this->log_prefix . "/" . $file_name;
 
                     $log_migration = LogMigration2::where('log_name', $file_name)->first();
 //                    $file_name_without_ext = str_replace('.gz', '', $file_name);
@@ -80,7 +82,12 @@ class HarvestLogs extends Command
                             \Queue::push('processLog', ['full_path' => $full_path, "log_name" => $file_name]);
                             $log_migration->status = "on_queue";
                             $log_migration->update();
+
+                            $this->info($number . '. ' . json_encode($key_names) . ' (push event from pending status)');
+                            \Log::info($number . '. ' . json_encode($key_names) . ' (push event from pending status)');
                         }
+                        else
+                            $this->comment($number . '. ' . json_encode($key_names) . " (status:{$log_migration->status})");
                     }
                     else {
 
@@ -90,20 +97,20 @@ class HarvestLogs extends Command
                             'full_path'  => $full_path,
                             'batch'      => $this->batch,
                             'status'     => "on_queue",
-                            "created_at" => \Carbon\Carbon::now(),
-                            "updated_at" => \Carbon\Carbon::now()
+                            "created_at" => Carbon::now(),
+                            "updated_at" => Carbon::now()
                         ];
 
                         array_push($batch_log_migration_import, $new_log_migration);
+                        $this->info($number . '. ' . json_encode($key_names));
+                        \Log::info($number . '. ' . json_encode($key_names));
                     }
 
                     if (count($batch_log_migration_import) > 0 && count($batch_log_migration_import) <= 100) {
                         LogMigration2::insert($batch_log_migration_import);
                         $batch_log_migration_import = [];
+                        DB::reconnect();
                     }
-
-                    $this->info($number . '. ' . json_encode($key_names));
-                    \Log::info($number . '. ' . json_encode($key_names));
                     $number+=1;
                 }
             }
@@ -111,6 +118,8 @@ class HarvestLogs extends Command
             if (count($batch_log_migration_import) > 0) {
                 LogMigration2::insert($batch_log_migration_import);
             }
+
+            DB::reconnect();
         }
     }
 
