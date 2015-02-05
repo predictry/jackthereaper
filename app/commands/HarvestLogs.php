@@ -2,14 +2,12 @@
 
 use App\Models\LogMigration2,
     Carbon\Carbon,
-    Illuminate\Console\Command,
     Illuminate\Support\Facades\DB;
 
-class HarvestLogs extends Command
+class HarvestLogs extends LogsBaseCommand
 {
 
-    private $bucket     = "", $log_prefix = "", $batch      = 0;
-    private $s3         = null;
+    private $batch = 0;
 
     /**
      * The console command name.
@@ -36,11 +34,6 @@ class HarvestLogs extends Command
 
         try
         {
-            $this->s3         = App::make('aws')->get('s3');
-            $this->bucket     = getenv('TRACKING_BUCKET');
-            $this->log_prefix = getenv('TRACKING_BUCKET_ACCESS_LOGS');
-
-
             $last_batch  = LogMigration2::max("batch");
             $this->batch = $last_batch+=1;
         }
@@ -76,9 +69,11 @@ class HarvestLogs extends Command
                     $log_migration = LogMigration2::where('log_name', $file_name)->first();
 //                    $file_name_without_ext = str_replace('.gz', '', $file_name);
                     //check if exist
-                    if ($log_migration) {
+                    if ($log_migration && is_object($log_migration)) {
+                        
+                        $comment_msg = $number . '. ' . json_encode($key_names) . " (status:{$log_migration->status})";
 
-                        if ($log_migration->status === "pending") {
+                        if (($log_migration->status === "pending")) {
                             \Queue::push('processLog', ['full_path' => $full_path, "log_name" => $file_name]);
                             $log_migration->status = "on_queue";
                             $log_migration->update();
@@ -86,11 +81,10 @@ class HarvestLogs extends Command
                             $this->info($number . '. ' . json_encode($key_names) . ' (push event from pending status)');
                             \Log::info($number . '. ' . json_encode($key_names) . ' (push event from pending status)');
                         }
-                        else
-                            $this->comment($number . '. ' . json_encode($key_names) . " (status:{$log_migration->status})");
+                        
+                        $this->comment($comment_msg);
                     }
                     else {
-
                         \Queue::push('processLog', ['full_path' => $full_path, "log_name" => $file_name]);
                         $new_log_migration = [
                             'log_name'   => $file_name,
@@ -120,24 +114,6 @@ class HarvestLogs extends Command
             }
 
             DB::reconnect();
-        }
-    }
-
-    /**
-     * Get bucket objects
-     * @return array | boolean
-     */
-    private function getBucketObjects()
-    {
-        try
-        {
-            $iterator = $this->s3->getIterator("ListObjects", ['Bucket' => $this->bucket, 'Prefix' => $this->log_prefix]);
-            return $iterator;
-        }
-        catch (Exception $ex)
-        {
-            \Log::error($ex->getMessage());
-            return false;
         }
     }
 
