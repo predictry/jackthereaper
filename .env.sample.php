@@ -17,6 +17,7 @@ return array(
     "SQS_QUEUE_URL"               => "sqs-queue-url",
     "SQS_QUEUE_REGION"            => "sqs-queue-region",
     "TRACKING_BUCKET"             => "",
+    "TRACKING_BACKUP_BUCKET"             => "",
     "TRACKING_BUCKET_ACCESS_LOGS" => "",
     "DEBUG_MODE"                  => false
 );

@@ -12,28 +12,31 @@
  */
 
 Route::get('/', function() {
-
-    $bucket     = "trackings";
-    $log_prefix = "action-logs";
-    $s3         = App::make('aws')->get('s3');
-    try
-    {
-        $iterator = $s3->getIterator("ListObjects", ['Bucket' => $bucket, 'Prefix' => $log_prefix]);
-        foreach ($iterator as $obj) {
-            echo $obj['Key'] . "<br/>";
-        }
-    }
-    catch (Exception $ex)
-    {
-        \Log::error($ex->getMessage());
-//        return false;
-    }
-
-    echo '<pre>';
-//    print_r($iterator);
-    echo "<br/>----<br/>";
-    echo '</pre>';
-    die;
-
     return View::make('hello');
+});
+
+
+Route::group(array('prefix' => 'api', 'namespace' => 'App\Controllers\Api'), function() {
+
+    //Allow from any origin
+    if (isset($_SERVER['HTTP_ORIGIN'])) {
+        header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
+        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Max-Age: 86400'); // cache for 1 day
+    }
+    // Access-Control headers are received during OPTIONS requests
+    if (isset($_SERVER['REQUEST_METHOD']) && ($_SERVER['REQUEST_METHOD'] == 'OPTIONS')) {
+        if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD']))
+            header("Access-Control-Allow-Methods: GET, PUT, POST, DELETE, OPTIONS");
+
+        if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']))
+            header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
+
+        exit(0);
+    }
+
+
+    Route::group(array('prefix' => 'v1'), function() {
+        Route::resource('logs', 'LogController', array("only" => array("update")));
+    });
 });

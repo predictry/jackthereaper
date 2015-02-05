@@ -12,7 +12,7 @@ return array(
       |
      */
 
-    'debug'           => false,
+    'debug'           => $_ENV['DEBUG_MODE'],
     /*
       |--------------------------------------------------------------------------
       | Application URL
@@ -106,7 +106,7 @@ return array(
         'Illuminate\Validation\ValidationServiceProvider',
         'Illuminate\View\ViewServiceProvider',
         'Illuminate\Workbench\WorkbenchServiceProvider',
-        'Aws\Laravel\AwsServiceProvider',
+        'Aws\Laravel\AwsServiceProvider'
     ),
     /*
       |--------------------------------------------------------------------------

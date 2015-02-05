@@ -121,7 +121,7 @@ class HarvestActions extends Command
 
                             //save to json
                             file_put_contents(storage_path("downloads/s3/{$this->bucket}/{$this->log_prefix}/finish/" . $file_name . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
-                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
+//                            $this->removeRemoteObject($obj['Key']); //remove the object in s3
 
                             if ($current_log_model->id) {
                                 $current_log_model->total_logs           = $this->counter;
@@ -409,7 +409,7 @@ class HarvestActions extends Command
                 }
 
                 if (str_replace("/", "", $log_data['cs-uri-stem']) === "started_checkout.gif" || str_replace("/", "", $log_data['cs-uri-stem']) === "buy.gif") {
-                    \Log::info(json_encode($queue_data));
+//                    \Log::info(json_encode($queue_data));
                 }
 
                 if ($log_data) {
