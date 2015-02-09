@@ -72,6 +72,8 @@ class CheckLogs extends LogsBaseCommand
                                 $comment_msg .= " and removed from source";
                             }
 
+                            $log_migration->status = 'on_backup';
+                            $log_migration->update();
                             $comment_msg.= ".";
                         }
                     }
