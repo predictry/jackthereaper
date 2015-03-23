@@ -70,32 +70,35 @@ class CheckProcessed extends Command
                 'QueueUrl' => $this->queue_url,
             ));
 
-            if ($result_receive) {
-                $msg = current($result_receive->getPath('Messages'));
+            if (!is_null($result_receive) && is_object($result_receive)) {
+                if (count($result_receive->getPath('Messages')) > 0) {
+                    $msg = current($result_receive->getPath('Messages'));
 
-                foreach ($result_receive->getPath('Messages/*/Body') as $messageBody) {
-                    // Do something with the message
-                    if ($messageBody !== "") {
-                        $obj = json_decode($messageBody);
-                        if (in_array($obj->data->log_name, $this->processed_logs_names)) {
+                    if (!is_null($msg))
+                        foreach ($result_receive->getPath('Messages/*/Body') as $messageBody) {
+                            // Do something with the message
+                            if ($messageBody !== "") {
+                                $obj = json_decode($messageBody);
+                                if (in_array($obj->data->log_name, $this->processed_logs_names)) {
 
-                            $result_delete = $this->sqs->deleteMessage(array(
-                                'QueueUrl'      => $this->queue_url,
-                                'ReceiptHandle' => $msg['ReceiptHandle']
-                            ));
+                                    $result_delete = $this->sqs->deleteMessage(array(
+                                        'QueueUrl'      => $this->queue_url,
+                                        'ReceiptHandle' => $msg['ReceiptHandle']
+                                    ));
 
-                            if (is_object($result_delete)) {
-                                $log_migration = LogMigration2::where('log_name', $obj->data->log_name)->first();
-                                if ($log_migration) {
-                                    $log_migration->status = 'processed';
-                                    $log_migration->update();
+                                    if (is_object($result_delete)) {
+                                        $log_migration = LogMigration2::where('log_name', $obj->data->log_name)->first();
+                                        if ($log_migration) {
+                                            $log_migration->status = 'processed';
+                                            $log_migration->update();
+                                        }
+
+                                        $this->info("Job deleted from the queue. Filename: {$obj->data->log_name}");
+                                        \Log::info("Job deleted from the queue. Filename: {$obj->data->log_name}");
+                                    }
                                 }
-                                
-                                $this->info("Job deleted from the queue. Filename: {$obj->data->log_name}");
-                                \Log::info("Job deleted from the queue. Filename: {$obj->data->log_name}");
                             }
                         }
-                    }
                 }
             }
         } while ($result_receive);
