@@ -58,7 +58,8 @@ class ReverseBackupLogs extends LogsBaseCommand
                 $key_name  = $file_name;
             }
 
-            if (in_array($file_name, $logs_name) && !$this->s3->doesObjectExist($this->bucket_backup, $file_name)) {
+            if (($file_name !== "") && in_array($file_name, $logs_name) && $this->s3->doesObjectExist($this->bucket_backup, $file_name)) {
+
                 $copy_model = $this->s3->copyObject([
                     'Bucket'     => "{$this->bucket}/{$this->log_prefix}",
                     'Key'        => $file_name,
