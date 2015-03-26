@@ -44,7 +44,8 @@ class ReverseBackupLogs extends LogsBaseCommand
             array_push($logs_name, $item['log_name']);
         }
 
-        $objects     = $this->getBucketObjects();
+        $objects = $this->getBucketObjects();
+
         $comment_msg = "";
 
         foreach ($objects as $obj) {

@@ -50,7 +50,7 @@ class HarvestLogs extends LogsBaseCommand
      */
     public function fire()
     {
-        $objects                    = $this->getBucketObjects();
+        $objects                    = $this->getBucketObjects($this->log_prefix);
         $batch_log_migration_import = [];
 
         if ($objects) {
