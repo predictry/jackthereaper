@@ -47,7 +47,7 @@ class LogsBaseCommand extends Command
         {
             $params = ['Bucket' => $bucket];
             if ($log_prefix) {
-                array_merge($params, ['Prefix' => $log_prefix]);
+                $params = array_merge($params, ['Prefix' => $log_prefix]);
             }
 
             $iterator = $this->s3->getIterator("ListObjects", $params);
