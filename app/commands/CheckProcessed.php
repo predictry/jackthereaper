@@ -2,7 +2,8 @@
 
 use App\Models\LogMigration2,
     Illuminate\Console\Command,
-    Illuminate\Filesystem\FileNotFoundException;
+    Illuminate\Filesystem\FileNotFoundException,
+    Symfony\Component\Console\Input\InputOption;
 
 class CheckProcessed extends Command
 {
@@ -34,28 +35,7 @@ class CheckProcessed extends Command
     public function __construct()
     {
         parent::__construct();
-
-        $this->sqs                     = App::make('aws')->get('sqs');
-        $this->processed_log_file_path = \storage_path('logs/march-processed-logs.txt');
-
-        try
-        {
-            $i = 1;
-            foreach (file($this->processed_log_file_path) as $line) {
-                if ($i > 1) {
-                    $arr = explode(',', str_replace('"', '', $line));
-
-                    if (count($arr) > 0) {
-                        array_push($this->processed_logs_names, $arr[0]);
-                    }
-                }
-                $i++;
-            }
-        }
-        catch (FileNotFoundException $exception)
-        {
-            die("The file doesn't exist");
-        }
+        $this->sqs = App::make('aws')->get('sqs');
     }
 
     /**
@@ -65,43 +45,66 @@ class CheckProcessed extends Command
      */
     public function fire()
     {
-        do {
-            $result_receive = $this->sqs->receiveMessage(array(
-                'QueueUrl' => $this->queue_url,
-            ));
+        $this->processed_log_file_path = $this->option('file_path');
+        if (!is_null($this->processed_log_file_path) && $this->processed_log_file_path !== "") {
+            $this->processed_log_file_path = storage_path($this->processed_log_file_path);
+            try
+            {
+                $i = 1;
+                foreach (file($this->processed_log_file_path) as $line) {
+                    if ($i > 1) {
+                        $arr = explode(',', str_replace('"', '', $line));
 
-            if (!is_null($result_receive) && is_object($result_receive)) {
-                if (count($result_receive->getPath('Messages')) > 0) {
-                    $msg = current($result_receive->getPath('Messages'));
+                        if (count($arr) > 0) {
+                            array_push($this->processed_logs_names, $arr[0]);
+                        }
+                    }
+                    $i++;
+                }
+            }
+            catch (FileNotFoundException $exception)
+            {
+                die("The file doesn't exist");
+            }
 
-                    if (!is_null($msg))
-                        foreach ($result_receive->getPath('Messages/*/Body') as $messageBody) {
-                            // Do something with the message
-                            if ($messageBody !== "") {
-                                $obj = json_decode($messageBody);
-                                if (in_array($obj->data->log_name, $this->processed_logs_names)) {
+            do {
+                $result_receive = $this->sqs->receiveMessage(array(
+                    'QueueUrl' => $this->queue_url,
+                ));
 
-                                    $result_delete = $this->sqs->deleteMessage(array(
-                                        'QueueUrl'      => $this->queue_url,
-                                        'ReceiptHandle' => $msg['ReceiptHandle']
-                                    ));
+                if (!is_null($result_receive) && is_object($result_receive)) {
+                    if (count($result_receive->getPath('Messages')) > 0) {
+                        $msg = current($result_receive->getPath('Messages'));
 
-                                    if (is_object($result_delete)) {
-                                        $log_migration = LogMigration2::where('log_name', $obj->data->log_name)->first();
-                                        if ($log_migration) {
-                                            $log_migration->status = 'processed';
-                                            $log_migration->update();
+                        if (!is_null($msg))
+                            foreach ($result_receive->getPath('Messages/*/Body') as $messageBody) {
+                                // Do something with the message
+                                if ($messageBody !== "") {
+                                    $obj = json_decode($messageBody);
+                                    if (in_array($obj->data->log_name, $this->processed_logs_names)) {
+
+                                        $result_delete = $this->sqs->deleteMessage(array(
+                                            'QueueUrl'      => $this->queue_url,
+                                            'ReceiptHandle' => $msg['ReceiptHandle']
+                                        ));
+
+                                        if (is_object($result_delete)) {
+                                            $log_migration = LogMigration2::where('log_name', $obj->data->log_name)->first();
+                                            if ($log_migration) {
+                                                $log_migration->status = 'processed';
+                                                $log_migration->update();
+                                            }
+
+                                            $this->info("Job deleted from the queue. Filename: {$obj->data->log_name}");
+                                            \Log::info("Job deleted from the queue. Filename: {$obj->data->log_name}");
                                         }
-
-                                        $this->info("Job deleted from the queue. Filename: {$obj->data->log_name}");
-                                        \Log::info("Job deleted from the queue. Filename: {$obj->data->log_name}");
                                     }
                                 }
                             }
-                        }
+                    }
                 }
-            }
-        } while ($result_receive);
+            } while ($result_receive);
+        }
     }
 
     /**
@@ -121,7 +124,7 @@ class CheckProcessed extends Command
      */
     protected function getOptions()
     {
-        return [];
+        return array(array('file_path', null, InputOption::VALUE_REQUIRED, 'Path of the file, and paste after storage. (Put the file in app/storage)', null));
     }
 
 }
