@@ -46,6 +46,7 @@ class ReverseBackupLogs extends LogsBaseCommand
 
         $objects = $this->getBucketObjects();
 
+        $number      = 1;
         $comment_msg = "";
 
         foreach ($objects as $obj) {
@@ -67,6 +68,7 @@ class ReverseBackupLogs extends LogsBaseCommand
                 ]);
 
                 if (count($copy_model->toArray()) > 0) {
+                    $comment_msg    = $number . '. ' . json_encode($key_names);
                     $comment_msg .= " | Successfully reverse backed up";
                     $this->info("Moved successfully to source bucket {$this->bucket}/{$this->log_prefix}.");
                     $arr_copy_model = $copy_model->toArray();
@@ -81,9 +83,9 @@ class ReverseBackupLogs extends LogsBaseCommand
                         $log_migration->update();
                     }
                     $comment_msg.= ".";
+                    $number +=1;
+                    $this->comment($comment_msg);
                 }
-
-                $this->comment($comment_msg);
             }
         }
     }
