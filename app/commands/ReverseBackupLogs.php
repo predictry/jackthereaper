@@ -37,7 +37,7 @@ class ReverseBackupLogs extends LogsBaseCommand
      */
     public function fire()
     {
-        $last_backed_up_logs = LogMigration2::where('status', 'processed')->orderBy('updated_at', 'DESC')->take(800)->skip(0)->get();
+        $last_backed_up_logs = LogMigration2::where('status', 'on_backup')->orderBy('updated_at', 'DESC')->take(800)->skip(0)->get();
         $logs_name           = [];
 
         foreach ($last_backed_up_logs as $item) {
@@ -60,14 +60,14 @@ class ReverseBackupLogs extends LogsBaseCommand
 
             if (in_array($file_name, $logs_name) && !$this->s3->doesObjectExist($this->bucket_backup, $file_name)) {
                 $copy_model = $this->s3->copyObject([
-                    'Bucket'     => "{$this->bucket}/action-logs/",
+                    'Bucket'     => "{$this->bucket}/{$this->log_prefix}",
                     'Key'        => $file_name,
                     'CopySource' => "{$this->bucket_backup}/{$key_name}"
                 ]);
 
                 if (count($copy_model->toArray()) > 0) {
                     $comment_msg .= " | Successfully reverse backed up";
-                    $this->info("Moved successfully to source bucket {$this->bucket}.");
+                    $this->info("Moved successfully to source bucket {$this->bucket}/{$this->log_prefix}.");
                     $arr_copy_model = $copy_model->toArray();
                     if (isset($arr_copy_model['ETag']) && $arr_copy_model['ETag'] !== "") {
                         $this->removeRemoteObject($obj['Key'], $this->bucket_backup);
