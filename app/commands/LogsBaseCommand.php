@@ -46,7 +46,7 @@ class LogsBaseCommand extends Command
         try
         {
             $params = ['Bucket' => $this->bucket];
-            if (!$log_prefix) {
+            if ($log_prefix) {
                 array_merge($params, ['Prefix' => $this->log_prefix]);
             }
 
