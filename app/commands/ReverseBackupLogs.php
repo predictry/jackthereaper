@@ -5,6 +5,8 @@ use App\Models\LogMigration2;
 class ReverseBackupLogs extends LogsBaseCommand
 {
 
+    private $ori_bucket = null;
+
     /**
      * The console command name.
      *
@@ -27,7 +29,8 @@ class ReverseBackupLogs extends LogsBaseCommand
     public function __construct()
     {
         parent::__construct();
-        $this->bucket = $this->bucket_backup;
+        $this->ori_bucket = $this->bucket;
+        $this->bucket     = $this->bucket_backup;
     }
 
     /**
@@ -44,7 +47,8 @@ class ReverseBackupLogs extends LogsBaseCommand
             array_push($logs_name, $item['log_name']);
         }
 
-        $objects = $this->getBucketObjects();
+        $objects      = $this->getBucketObjects();
+        $this->bucket = $this->ori_bucket;
 
         $number      = 1;
         $comment_msg = "";
@@ -64,11 +68,12 @@ class ReverseBackupLogs extends LogsBaseCommand
                 $copy_model = $this->s3->copyObject([
                     'Bucket'     => "{$this->bucket}/{$this->log_prefix}",
                     'Key'        => $file_name,
-                    'CopySource' => "{$this->bucket_backup}/{$key_name}"
+                    'CopySource' => "{$this->bucket_backup}/{$file_name}"
                 ]);
 
+
                 if (count($copy_model->toArray()) > 0) {
-                    $comment_msg    = $number . '. ' . json_encode($key_names);
+                    $comment_msg    = $number . '. ' . $file_name;
                     $comment_msg .= " | Successfully reverse backed up";
                     $this->info("Moved successfully to source bucket {$this->bucket}/{$this->log_prefix}.");
                     $arr_copy_model = $copy_model->toArray();
