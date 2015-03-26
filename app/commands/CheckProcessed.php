@@ -99,6 +99,17 @@ class CheckProcessed extends Command
                                             \Log::info("Job deleted from the queue. Filename: {$obj->data->log_name}");
                                         }
                                     }
+                                    else {
+                                        $log_migration = LogMigration2::where('log_name', $obj->data->log_name)->first();
+                                        if ($log_migration->status === 'on_backup' || $log_migration->status === 'processed') {
+                                            $result_delete = $this->sqs->deleteMessage(array(
+                                                'QueueUrl'      => $this->queue_url,
+                                                'ReceiptHandle' => $msg['ReceiptHandle']
+                                            ));
+
+                                            $this->info("Job deleted from the queue. Filename: {$obj->data->log_name}");
+                                        }
+                                    }
                                 }
                             }
                     }
