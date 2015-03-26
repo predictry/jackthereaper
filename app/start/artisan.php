@@ -15,3 +15,4 @@
 Artisan::add(new HarvestLogs);
 Artisan::add(new CheckLogs());
 Artisan::add(new CheckProcessed());
+Artisan::add(new ReverseBackupLogs());
