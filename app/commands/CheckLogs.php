@@ -1,8 +1,6 @@
 <?php
 
-use App\Models\LogMigration2,
-    Symfony\Component\Console\Input\InputArgument,
-    Symfony\Component\Console\Input\InputOption;
+use App\Models\LogMigration2;
 
 class CheckLogs extends LogsBaseCommand
 {
@@ -38,7 +36,7 @@ class CheckLogs extends LogsBaseCommand
      */
     public function fire()
     {
-        $objects     = $this->getBucketObjects();
+        $objects     = $this->getBucketObjects($this->bucket, $this->log_prefix);
         $number      = 1;
         $comment_msg = "";
         foreach ($objects as $obj) {
@@ -72,6 +70,8 @@ class CheckLogs extends LogsBaseCommand
                                 $comment_msg .= " and removed from source";
                             }
 
+                            $log_migration->status = 'on_backup';
+                            $log_migration->update();
                             $comment_msg.= ".";
                         }
                     }

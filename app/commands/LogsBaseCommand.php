@@ -41,11 +41,16 @@ class LogsBaseCommand extends Command
      * Get bucket objects
      * @return array | boolean
      */
-    function getBucketObjects()
+    function getBucketObjects($bucket, $log_prefix = false)
     {
         try
         {
-            $iterator = $this->s3->getIterator("ListObjects", ['Bucket' => $this->bucket, 'Prefix' => $this->log_prefix]);
+            $params = ['Bucket' => $bucket];
+            if ($log_prefix) {
+                $params = array_merge($params, ['Prefix' => $log_prefix]);
+            }
+
+            $iterator = $this->s3->getIterator("ListObjects", $params);
             return $iterator;
         }
         catch (Exception $ex)
@@ -55,12 +60,12 @@ class LogsBaseCommand extends Command
         }
     }
 
-    function removeRemoteObject($key)
+    function removeRemoteObject($key, $bucket = null)
     {
         try
         {
             $result = $this->s3->deleteObject([
-                'Bucket' => $this->bucket,
+                'Bucket' => (is_null($bucket)) ? $this->bucket : $bucket,
                 'Key'    => $key
             ]);
 

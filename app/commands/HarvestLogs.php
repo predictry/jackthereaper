@@ -50,7 +50,7 @@ class HarvestLogs extends LogsBaseCommand
      */
     public function fire()
     {
-        $objects                    = $this->getBucketObjects();
+        $objects                    = $this->getBucketObjects($this->bucket, $this->log_prefix);
         $batch_log_migration_import = [];
 
         if ($objects) {
@@ -70,7 +70,7 @@ class HarvestLogs extends LogsBaseCommand
 //                    $file_name_without_ext = str_replace('.gz', '', $file_name);
                     //check if exist
                     if ($log_migration && is_object($log_migration)) {
-                        
+
                         $comment_msg = $number . '. ' . json_encode($key_names) . " (status:{$log_migration->status})";
 
                         if (($log_migration->status === "pending")) {
@@ -81,7 +81,7 @@ class HarvestLogs extends LogsBaseCommand
                             $this->info($number . '. ' . json_encode($key_names) . ' (push event from pending status)');
                             \Log::info($number . '. ' . json_encode($key_names) . ' (push event from pending status)');
                         }
-                        
+
                         $this->comment($comment_msg);
                     }
                     else {
