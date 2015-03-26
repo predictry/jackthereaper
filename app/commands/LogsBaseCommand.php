@@ -55,12 +55,12 @@ class LogsBaseCommand extends Command
         }
     }
 
-    function removeRemoteObject($key)
+    function removeRemoteObject($key, $bucket = null)
     {
         try
         {
             $result = $this->s3->deleteObject([
-                'Bucket' => $this->bucket,
+                'Bucket' => (is_null($bucket)) ? $this->bucket : $bucket,
                 'Key'    => $key
             ]);
 
