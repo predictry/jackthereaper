@@ -41,13 +41,13 @@ class LogsBaseCommand extends Command
      * Get bucket objects
      * @return array | boolean
      */
-    function getBucketObjects($log_prefix = false)
+    function getBucketObjects($bucket, $log_prefix = false)
     {
         try
         {
-            $params = ['Bucket' => $this->bucket];
+            $params = ['Bucket' => $bucket];
             if ($log_prefix) {
-                array_merge($params, ['Prefix' => $this->log_prefix]);
+                array_merge($params, ['Prefix' => $log_prefix]);
             }
 
             $iterator = $this->s3->getIterator("ListObjects", $params);

@@ -29,8 +29,6 @@ class ReverseBackupLogs extends LogsBaseCommand
     public function __construct()
     {
         parent::__construct();
-        $this->ori_bucket = $this->bucket;
-        $this->bucket     = $this->bucket_backup;
     }
 
     /**
@@ -47,8 +45,7 @@ class ReverseBackupLogs extends LogsBaseCommand
             array_push($logs_name, $item['log_name']);
         }
 
-        $objects      = $this->getBucketObjects();
-        $this->bucket = $this->ori_bucket;
+        $objects      = $this->getBucketObjects($this->bucket_backup);
 
         $number      = 1;
         $comment_msg = "";

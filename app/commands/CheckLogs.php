@@ -36,7 +36,7 @@ class CheckLogs extends LogsBaseCommand
      */
     public function fire()
     {
-        $objects     = $this->getBucketObjects($this->log_prefix);
+        $objects     = $this->getBucketObjects($this->bucket, $this->log_prefix);
         $number      = 1;
         $comment_msg = "";
         foreach ($objects as $obj) {
