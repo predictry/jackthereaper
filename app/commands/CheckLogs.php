@@ -1,8 +1,6 @@
 <?php
 
-use App\Models\LogMigration2,
-    Symfony\Component\Console\Input\InputArgument,
-    Symfony\Component\Console\Input\InputOption;
+use App\Models\LogMigration2;
 
 class CheckLogs extends LogsBaseCommand
 {
