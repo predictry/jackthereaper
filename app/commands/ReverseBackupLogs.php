@@ -80,6 +80,8 @@ class ReverseBackupLogs extends LogsBaseCommand
                     }
                     $comment_msg.= ".";
                 }
+
+                $this->comment($comment_msg);
             }
         }
     }
