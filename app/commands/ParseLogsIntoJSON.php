@@ -110,7 +110,8 @@ class ParseLogsIntoJSON extends LogsBaseCommand
             }
 
             $file_name_without_ext = str_replace('.gz', '', $file_name);
-            if (in_array($file_name_without_ext . '.json', $this->processed_logs) || in_array($file_name_without_ext . '.json', $this->processing_logs))
+
+            if (($file_name_without_ext === "") || ($file_name_without_ext === ".DS_Store") || in_array($file_name_without_ext . '.json', $this->processed_logs) || in_array($file_name_without_ext . '.json', $this->processing_logs))
                 continue;
 
             if (is_array($arr_filename) && isset($arr_filename[1]))
