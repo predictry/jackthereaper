@@ -18,7 +18,7 @@ class CheckProcessed extends Command
      *
      * @var string
      */
-    protected $name = 'logs:checkProcessed';
+    protected $name = 'logs:check-processed';
 
     /**
      * The console command description.
