@@ -5,14 +5,12 @@ use App\Models\LogMigration2;
 class ReverseBackupLogs extends LogsBaseCommand
 {
 
-    private $ori_bucket = null;
-
     /**
      * The console command name.
      *
      * @var string
      */
-    protected $name = 'logs:reverseBackup';
+    protected $name = 'logs:reverse-backup';
 
     /**
      * The console command description.
@@ -45,7 +43,7 @@ class ReverseBackupLogs extends LogsBaseCommand
             array_push($logs_name, $item['log_name']);
         }
 
-        $objects      = $this->getBucketObjects($this->bucket_backup);
+        $objects = $this->getBucketObjects($this->bucket_backup);
 
         $number      = 1;
         $comment_msg = "";

@@ -19,7 +19,7 @@ composer.phar
 composer.lock
 .env.local.php
 .env.php
-app/storage/downloads
+app/storage
 
 ### OSX ###
 .DS_Store

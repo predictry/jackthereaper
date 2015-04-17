@@ -12,7 +12,8 @@
     },
     "require-dev": {
         "barryvdh/laravel-ide-helper": "1.*",
-        "codeception/codeception": "dev-master"
+        "codeception/codeception": "dev-master",
+        "way/generators": "2.*"
     },
     "autoload": {
         "classmap": [
