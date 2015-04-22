@@ -154,7 +154,7 @@ class ParseLogsIntoJSON extends LogsBaseCommand
 
                         $this->info("ready to upload file");
                         $this->s3->putObject([
-                            'Bucket'     => "trackings/action-logs-json-formatted-test",
+                            'Bucket'     => "trackings/action-logs-json-formatted",
                             "Key"        => "{$file_name_without_ext}" . ".json",
                             "SourceFile" => storage_path("logs/extract/{$file_name_without_ext}" . ".json")
                         ]);
