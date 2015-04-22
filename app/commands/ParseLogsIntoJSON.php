@@ -130,7 +130,13 @@ class ParseLogsIntoJSON extends LogsBaseCommand
                 $str_date_formatted    = $date->format('Y-m-d');
 
                 if (in_array($str_date_formatted, $dates)) {
-                    $this->info("in_array");
+                    $this->info("in the range of date");
+
+                    if ($this->s3->doesObjectExist("trackings/action-logs-json-formatted", "{$file_name_without_ext}" . ".json")) {
+                        $this->info("formatted json already exists on s3");
+                        continue;
+                    }
+
                     if (!\File::exists(storage_path("logs/s3_tmp/{$file_name_without_ext}"))) { //check if file exist
                         //download the object to the local storage
                         $this->downloadObject($this->bucket, $obj['Key'], storage_path("logs/s3_tmp/{$file_name}"));
@@ -139,7 +145,7 @@ class ParseLogsIntoJSON extends LogsBaseCommand
                         $this->extractObject(storage_path("logs/s3_tmp/{$file_name}"));
 
                         //check if extract file exists
-                        if (\File::exists(storage_path("logs/s3_tmp/{$file_name_without_ext}"))) { //check if file exist
+                        if (\File::exists(storage_path("logs/s3_tmp/{$file_name_without_ext}"))) { //chec k if file exist
                             $this->info("extract file exists");
                             $rows = $this->readFile(storage_path("logs/s3_tmp/{$file_name_without_ext}"));
 
@@ -148,7 +154,7 @@ class ParseLogsIntoJSON extends LogsBaseCommand
 
                         $this->info("ready to upload file");
                         $this->s3->putObject([
-                            'Bucket'     => "trackings/action-logs-json-formated-test",
+                            'Bucket'     => "trackings/action-logs-json-formatted-test",
                             "Key"        => "{$file_name_without_ext}" . ".json",
                             "SourceFile" => storage_path("logs/extract/{$file_name_without_ext}" . ".json")
                         ]);
