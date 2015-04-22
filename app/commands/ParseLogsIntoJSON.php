@@ -148,7 +148,7 @@ class ParseLogsIntoJSON extends LogsBaseCommand
                         if (\File::exists(storage_path("logs/s3_tmp/{$file_name_without_ext}"))) { //chec k if file exist
                             $this->info("extract file exists");
                             $rows = $this->readFile(storage_path("logs/s3_tmp/{$file_name_without_ext}"));
-                            $this->saveAsChunks($rows);
+                            $this->saveAsChunks($file_name, $rows);
                             $this->deleteTempLogFiles($file_name);
                         }
                     }
@@ -288,12 +288,13 @@ class ParseLogsIntoJSON extends LogsBaseCommand
         }
     }
 
-    protected function saveAsChunks($rows)
+    protected function saveAsChunks($filename, $rows)
     {
+        $file_name_without_ext = str_replace('.gz', '', $file_name);
         //divide into several files
-        $new_rows = [];
-        $counter  = 0;
-        $chunk    = 1500;
+        $new_rows              = [];
+        $counter               = 0;
+        $chunk                 = 1500;
         foreach ($rows as $row) {
 
             array_push($new_rows, $row);
