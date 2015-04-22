@@ -107,7 +107,6 @@ return array(
         'Illuminate\View\ViewServiceProvider',
         'Illuminate\Workbench\WorkbenchServiceProvider',
         'Aws\Laravel\AwsServiceProvider',
-        'Way\Generators\GeneratorsServiceProvider'
     ),
     /*
       |--------------------------------------------------------------------------
