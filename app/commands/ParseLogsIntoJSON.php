@@ -155,7 +155,7 @@ class ParseLogsIntoJSON extends LogsBaseCommand
 
                         // We can poll the object until it is accessible
                         $this->s3->waitUntil('ObjectExists', array(
-                            'Bucket' => "trackings/action-logs-json-formated",
+                            'Bucket' => "trackings/action-logs-json-formatted",
                             "Key"    => "{$file_name_without_ext}" . ".json",
                         ));
 
