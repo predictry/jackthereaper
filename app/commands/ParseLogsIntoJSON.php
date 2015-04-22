@@ -148,78 +148,7 @@ class ParseLogsIntoJSON extends LogsBaseCommand
                         if (\File::exists(storage_path("logs/s3_tmp/{$file_name_without_ext}"))) { //chec k if file exist
                             $this->info("extract file exists");
                             $rows = $this->readFile(storage_path("logs/s3_tmp/{$file_name_without_ext}"));
-
-                            //divide into several files
-                            $new_rows = [];
-                            $counter  = 0;
-                            $chunk    = 1500;
-                            foreach ($rows as $row) {
-
-                                array_push($new_rows, $row);
-
-                                if (($counter > 0) && ($counter % $chunk === 0)) {
-                                    file_put_contents(storage_path("logs/extract/{$file_name_without_ext}-{$counter}" . ".json"), json_encode($new_rows, JSON_PRETTY_PRINT));
-
-                                    $this->info("ready to upload file {$file_name_without_ext}-{$counter}" . ".json");
-
-                                    $this->s3->putObject([
-                                        'Bucket'     => "trackings/action-logs-json-formatted",
-                                        "Key"        => "{$file_name_without_ext}-{$counter}" . ".json",
-                                        "SourceFile" => storage_path("logs/extract/{$file_name_without_ext}-{$counter}" . ".json")
-                                    ]);
-
-                                    // We can poll the object until it is accessible
-                                    $this->s3->waitUntil('ObjectExists', array(
-                                        'Bucket' => "trackings/action-logs-json-formatted",
-                                        "Key"    => "{$file_name_without_ext}-{$counter}" . ".json",
-                                    ));
-
-                                    \File::delete(storage_path("logs/extract/{$file_name_without_ext}-{$counter}" . ".json"));
-
-                                    $counter  = 0; //reset counter
-                                    $new_rows = []; //reset new_rows
-                                }
-
-                                $counter++;
-                            }
-
-                            if (count($new_rows) > 0) {
-                                file_put_contents(storage_path("logs/extract/{$file_name_without_ext}-{$counter}" . ".json"), json_encode($new_rows, JSON_PRETTY_PRINT));
-
-                                $this->info("ready to upload file {$file_name_without_ext}-{$counter}" . ".json");
-
-                                $this->s3->putObject([
-                                    'Bucket'     => "trackings/action-logs-json-formatted",
-                                    "Key"        => "{$file_name_without_ext}-{$counter}" . ".json",
-                                    "SourceFile" => storage_path("logs/extract/{$file_name_without_ext}-{$counter}" . ".json")
-                                ]);
-
-                                // We can poll the object until it is accessible
-                                $this->s3->waitUntil('ObjectExists', array(
-                                    'Bucket' => "trackings/action-logs-json-formatted",
-                                    "Key"    => "{$file_name_without_ext}-{$counter}" . ".json",
-                                ));
-                            }
-
-
-                            //trick upload empty file for checking
-                            file_put_contents(storage_path("logs/extract/{$file_name_without_ext}" . ".json"), json_encode([], JSON_PRETTY_PRINT));
-
-                            $this->info("ready to upload file {$file_name_without_ext}" . ".json");
-
-                            $this->s3->putObject([
-                                'Bucket'     => "trackings/action-logs-json-formatted",
-                                "Key"        => "{$file_name_without_ext}" . ".json",
-                                "SourceFile" => storage_path("logs/extract/{$file_name_without_ext}" . ".json")
-                            ]);
-
-                            // We can poll the object until it is accessible
-                            $this->s3->waitUntil('ObjectExists', array(
-                                'Bucket' => "trackings/action-logs-json-formatted",
-                                "Key"    => "{$file_name_without_ext}" . ".json",
-                            ));
-
-
+                            $this->saveAsChunks($rows);
                             $this->deleteTempLogFiles($file_name);
                         }
                     }
@@ -357,6 +286,83 @@ class ParseLogsIntoJSON extends LogsBaseCommand
             \Log::error($ex->getMessage());
             return false;
         }
+    }
+
+    protected function saveAsChunks($rows)
+    {
+        //divide into several files
+        $new_rows = [];
+        $counter  = 0;
+        $chunk    = 1500;
+        foreach ($rows as $row) {
+
+            array_push($new_rows, $row);
+
+            if (($counter > 0) && ($counter % $chunk === 0)) {
+                file_put_contents(storage_path("logs/extract/{$file_name_without_ext}-{$counter}" . ".json"), json_encode($new_rows, JSON_PRETTY_PRINT));
+
+                $this->info("ready to upload file {$file_name_without_ext}-{$counter}" . ".json");
+
+                $this->s3->putObject([
+                    'Bucket'     => "trackings/action-logs-json-formatted",
+                    "Key"        => "{$file_name_without_ext}-{$counter}" . ".json",
+                    "SourceFile" => storage_path("logs/extract/{$file_name_without_ext}-{$counter}" . ".json")
+                ]);
+
+                // We can poll the object until it is accessible
+                $this->s3->waitUntil('ObjectExists', array(
+                    'Bucket' => "trackings/action-logs-json-formatted",
+                    "Key"    => "{$file_name_without_ext}-{$counter}" . ".json",
+                ));
+
+                \File::delete(storage_path("logs/extract/{$file_name_without_ext}-{$counter}" . ".json"));
+
+                $counter  = 0; //reset counter
+                $new_rows = []; //reset new_rows
+            }
+
+            $counter++;
+        }
+
+        if (count($new_rows) > 0) {
+            file_put_contents(storage_path("logs/extract/{$file_name_without_ext}-{$counter}" . ".json"), json_encode($new_rows, JSON_PRETTY_PRINT));
+
+            $this->info("ready to upload file {$file_name_without_ext}-{$counter}" . ".json");
+
+            $this->s3->putObject([
+                'Bucket'     => "trackings/action-logs-json-formatted",
+                "Key"        => "{$file_name_without_ext}-{$counter}" . ".json",
+                "SourceFile" => storage_path("logs/extract/{$file_name_without_ext}-{$counter}" . ".json")
+            ]);
+
+            // We can poll the object until it is accessible
+            $this->s3->waitUntil('ObjectExists', array(
+                'Bucket' => "trackings/action-logs-json-formatted",
+                "Key"    => "{$file_name_without_ext}-{$counter}" . ".json",
+            ));
+
+            \File::delete(storage_path("logs/extract/{$file_name_without_ext}-{$counter}" . ".json"));
+        }
+
+
+        //trick upload empty file for checking
+        file_put_contents(storage_path("logs/extract/{$file_name_without_ext}" . ".json"), json_encode([], JSON_PRETTY_PRINT));
+
+        $this->info("ready to upload file {$file_name_without_ext}" . ".json");
+
+        $this->s3->putObject([
+            'Bucket'     => "trackings/action-logs-json-formatted",
+            "Key"        => "{$file_name_without_ext}" . ".json",
+            "SourceFile" => storage_path("logs/extract/{$file_name_without_ext}" . ".json")
+        ]);
+
+        // We can poll the object until it is accessible
+        $this->s3->waitUntil('ObjectExists', array(
+            'Bucket' => "trackings/action-logs-json-formatted",
+            "Key"    => "{$file_name_without_ext}" . ".json",
+        ));
+
+        \File::delete(storage_path("logs/extract/{$file_name_without_ext}" . ".json"));
     }
 
 }
