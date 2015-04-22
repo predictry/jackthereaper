@@ -1,7 +1,10 @@
 ###Predictry Harvest Actions Log App
 
+Keeps track of the logs and put the new ones in the queue. For processing to be inserted into NEO4j.
+Also harvest the logs in json and store in s3 bucket analytics and backup
+
 ####Command
-php artisan actions:harvest (removed)
+php artisan actions:harvest (removed - not used)
 
 php artisan logs:harvest
 
