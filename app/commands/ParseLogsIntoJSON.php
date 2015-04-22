@@ -288,7 +288,7 @@ class ParseLogsIntoJSON extends LogsBaseCommand
         }
     }
 
-    protected function saveAsChunks($filename, $rows)
+    protected function saveAsChunks($file_name, $rows)
     {
         $file_name_without_ext = str_replace('.gz', '', $file_name);
         //divide into several files
