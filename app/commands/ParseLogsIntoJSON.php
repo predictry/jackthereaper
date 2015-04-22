@@ -17,6 +17,12 @@ class ParseLogsIntoJSON extends LogsBaseCommand
     private $log_name_option        = "";
     private $batch                  = 0;
     private $limit                  = 1000;
+    private $action_stats_columns   = [
+        "id", "action_id", "tenant_id", "regular_stats", "recommended_stats", "created", "is_reco"
+    ];
+    private $sales_stats_columns    = [
+        "id", "tenant_id", "action_id", "user_id", "session_id", "item_id", "group_id", "qty", "sub_total", "is_reco", "created"
+    ];
 
     /**
      * The console command name.
@@ -65,122 +71,98 @@ class ParseLogsIntoJSON extends LogsBaseCommand
      */
     public function fire()
     {
-        $this->bucket          = $this->argument('bucket');
-        $this->log_prefix      = $this->option('prefix');
-        $this->log_prefix      = isset($this->log_prefix) ? $this->log_prefix : false;
+        $counter       = 1;
+        $counter_dates = 0;
+
+        $this->bucket = $this->argument('bucket');
+
+        $this->log_prefix = $this->option('prefix');
+        $this->log_prefix = isset($this->log_prefix) ? $this->log_prefix : false;
+
         $this->log_name_option = $this->option("log_name");
-        $this->limit           = $this->option('limit');
-        $this->limit           = (isset($this->limit)) ? $this->limit : 1000;
-        $start_date            = $this->option('start_date');
-        $end_date              = $this->option('end_date');
+
+        $this->limit = $this->option('limit');
+        $this->limit = (isset($this->limit)) ? $this->limit : 1000;
+
+        $start_date = $this->option('start_date');
+        $end_date   = $this->option('end_date');
 
         $this->printTitle();
         $bucket_objects = $this->getBucketObjects($this->bucket, $this->log_prefix);
 
-        $counter = 1;
+        $dates        = Helper::getListDateRange($start_date, $end_date);
+        $length_dates = count($dates);
 
-        $dates         = Helper::getListDateRange($start_date, $end_date);
-        $counter_dates = 0;
-        $length_dates  = count($dates);
+
+        //1. fetch list of object based on
+        //2. filter objects based on date range AND
+        // name
+        // limit
+        //3. Download the object from S3
+        //4. Parse the log into JSON
+        //5. Push the parse JSON log into S3 Bucket
+        // While parsing the log into JSON
+        // - create batch import sql content
+        // - push (import sql content) into the queue
+        //5. Delete downloaded object from local
+        //6. Log the processed access
+        //7. Push / Upload JSON formatted log into S3
 
         foreach ($bucket_objects as $obj) {
-            $key_names          = explode('/', $obj['Key']);
-            $str_date_formatted = null;
 
-            if ($this->log_prefix) {
-                if (count($key_names) > 0 && ($key_names[0] === $this->log_prefix)) {
-                    if ($key_names[1] === "")
-                        continue;
-                }
-                $file_name = $key_names[1];
-            }
-            else
-                $file_name = $key_names[0];
-
-            if ($this->log_name_option && isset($this->log_name_option)) {
-                if ($this->log_name_option != $file_name) {
-                    continue;
-                }
-                else
-                    $this->info("found {$file_name}");
-            }
-
+            $str_date           = $str_date_formatted = null;
+            $file_name          = $this->getFilename($obj, $this->log_prefix);
             if ($file_name !== "") {
                 $arr_filename = explode('.', $file_name);
+                if (is_array($arr_filename)) {
+                    $str_date = $arr_filename[1];
+                }
             }
-
-            $file_name_without_ext = str_replace('.gz', '', $file_name);
-
-            if (($file_name_without_ext === "") || ($file_name_without_ext === ".DS_Store") || in_array($file_name_without_ext . '.json', $this->processed_logs) || in_array($file_name_without_ext . '.json', $this->processing_logs))
+            else
                 continue;
 
-            if (is_array($arr_filename) && isset($arr_filename[1]))
-                $str_date = $arr_filename[1];
+            $this->info($file_name);
+            $pos = strpos($file_name, ".gz");
 
-            if ($str_date !== "") {
-                $date               = date_create_from_format('Y-m-d-H', $str_date);
-                $str_date_formatted = $date->format('Y-m-d');
+            if ($pos !== false && ($str_date !== "")) {
+                $file_name_without_ext = str_replace('.gz', '', $file_name);
+                $date                  = date_create_from_format('Y-m-d-H', $str_date);
+                $str_date_formatted    = $date->format('Y-m-d');
 
-                if (!in_array($str_date_formatted, $dates)) { //current file is not within date range//then continue
-                    $this->info("{$file_name} is not within date range");
-                    continue;
-                }
-                else {
-                    $this->error("{$file_name} is within date range");
-                    $counter_dates +=1;
-                }
-            }
+                if (in_array($str_date_formatted, $dates)) {
+                    $this->info("in_array");
+                    if (!\File::exists(storage_path("logs/s3_tmp/{$file_name_without_ext}"))) { //check if file exist
+                        //download the object to the local storage
+                        $this->downloadObject($this->bucket, $obj['Key'], storage_path("logs/s3_tmp/{$file_name}"));
 
-            if ($file_name !== "") {
-                $start_time = time();
-                //download the object to the local storage
-                $this->downloadObject($this->bucket, $obj['Key'], storage_path("logs/s3_tmp/{$file_name}"));
+                        //extract the zip log
+                        $this->extractObject(storage_path("logs/s3_tmp/{$file_name}"));
 
-                //extract the zip log
-                $this->extractObject(storage_path("logs/s3_tmp/{$file_name}"));
+                        //check if extract file exists
+                        if (\File::exists(storage_path("logs/s3_tmp/{$file_name_without_ext}"))) { //check if file exist
+                            $this->info("extract file exists");
+                            $rows = $this->readFile(storage_path("logs/s3_tmp/{$file_name_without_ext}"));
 
-                if (\File::exists(storage_path("logs/s3_tmp/{$file_name_without_ext}"))) {
-                    $rows = $this->readFile(storage_path("logs/s3_tmp/{$file_name_without_ext}"));
-                    file_put_contents(storage_path("logs/extract/{$file_name_without_ext}" . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
-                }
-                $end_time = time();
-                $diff     = $end_time - $start_time;
-                $this->info("Processing time for log {$file_name}: {$diff} sec");
+                            file_put_contents(storage_path("logs/extract/{$file_name_without_ext}" . ".json"), json_encode($rows, JSON_PRETTY_PRINT));
+                        }
 
-                $this->deleteTempLogFiles($file_name);
+                        $this->info("ready to upload file");
+                        $this->s3->putObject([
+                            'Bucket'     => "trackings/action-logs-json-formated-test",
+                            "Key"        => "{$file_name_without_ext}" . ".json",
+                            "SourceFile" => storage_path("logs/extract/{$file_name_without_ext}" . ".json")
+                        ]);
 
-                $this->info($counter . ") " . json_encode($this->getDetailOfFilename($file_name)));
-                $counter+=1;
+                        // We can poll the object until it is accessible
+                        $this->s3->waitUntil('ObjectExists', array(
+                            'Bucket' => "trackings/action-logs-json-formated",
+                            "Key"    => "{$file_name_without_ext}" . ".json",
+                        ));
 
-                if ($counter % 100 == 1)
-                    sleep(2);
-
-                array_push($this->processing_logs, $file_name);
-                array_push($this->processing_detail_logs, [
-                    'log_name'   => $file_name_without_ext . '.json',
-                    'full_path'  => storage_path("logs/extract/{$file_name_without_ext}" . ".json"),
-                    'batch'      => $this->batch,
-                    'created_at' => new Carbon(),
-                    'updated_at' => new Carbon()
-                ]);
-
-
-                if (count($this->processing_detail_logs) > 10) {
-                    LogExtraction::insert($this->processing_detail_logs);
-                    $this->processing_detail_logs = [];
+                        $this->deleteTempLogFiles($file_name);
+                    }
                 }
             }
-
-            if ($counter % $this->limit === 0) {
-                LogExtraction::insert($this->processing_detail_logs);
-                $this->processing_detail_logs = [];
-                die;
-            }
-        }
-
-        if (count($this->processing_detail_logs) > 0) {
-            LogExtraction::insert($this->processing_detail_logs);
-            $this->processing_detail_logs = [];
         }
     }
 
@@ -266,8 +248,8 @@ class ParseLogsIntoJSON extends LogsBaseCommand
             $fh = fopen($file_path, 'r');
 
             while ($line = fgets($fh)) {
-                //check if comment
 
+                //check if comment
                 if (substr($line, 0, 1) == "#") {
 
                     if ($counter === 1) {
@@ -291,8 +273,6 @@ class ParseLogsIntoJSON extends LogsBaseCommand
                 if (isset($combine['cs-uri-query']) && $combine['cs-uri-query'] !== "-" && $combine['date'] && $combine['time']) {
                     $deserialized_query = $this->getDeserializeQuery($combine['cs-uri-query'], $combine);
                 }
-
-//                $this->info(json_encode($row));
 
                 $allowed_headers = [
                     'date', 'time', 'c-ip', 'cs-uri-stem'
