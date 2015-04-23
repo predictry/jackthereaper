@@ -2,7 +2,9 @@
 
 use App\Models\LogMigration2,
     Carbon\Carbon,
-    Illuminate\Support\Facades\DB;
+    Illuminate\Support\Facades\DB,
+    Symfony\Component\Console\Input\InputArgument,
+    Symfony\Component\Console\Input\InputOption;
 
 class HarvestLogs extends LogsBaseCommand
 {
@@ -50,6 +52,11 @@ class HarvestLogs extends LogsBaseCommand
      */
     public function fire()
     {
+        $this->bucket = $this->argument('bucket');
+
+        $this->log_prefix = $this->option('prefix');
+        $this->log_prefix = isset($this->log_prefix) ? $this->log_prefix : false;
+
         $objects                    = $this->getBucketObjects($this->bucket, $this->log_prefix);
         $batch_log_migration_import = [];
 
@@ -59,27 +66,23 @@ class HarvestLogs extends LogsBaseCommand
 
             foreach ($objects as $obj) {
 
-                $key_names = explode('/', $obj['Key']);
-
-                if (count($key_names) > 0 && ($key_names[1] !== "")) {
-
-                    $file_name = $key_names[1];
+                $file_name = $this->getFilename($obj, $this->log_prefix);
+                if ($file_name !== "") {
                     $full_path = $this->bucket . "/" . $this->log_prefix . "/" . $file_name;
 
                     $log_migration = LogMigration2::where('log_name', $file_name)->first();
-//                    $file_name_without_ext = str_replace('.gz', '', $file_name);
                     //check if exist
                     if ($log_migration && is_object($log_migration)) {
 
-                        $comment_msg = $number . '. ' . json_encode($key_names) . " (status:{$log_migration->status})";
+                        $comment_msg = $number . '. ' . json_encode($full_path) . " (status:{$log_migration->status})";
 
                         if (($log_migration->status === "pending")) {
                             \Queue::push('processLog', ['full_path' => $full_path, "log_name" => $file_name]);
                             $log_migration->status = "on_queue";
                             $log_migration->update();
 
-                            $this->info($number . '. ' . json_encode($key_names) . ' (push event from pending status)');
-                            \Log::info($number . '. ' . json_encode($key_names) . ' (push event from pending status)');
+                            $this->info($number . '. ' . json_encode($file_name) . ' (push event from pending status)');
+                            \Log::info($number . '. ' . json_encode($file_name) . ' (push event from pending status)');
                         }
 
                         $this->comment($comment_msg);
@@ -96,8 +99,8 @@ class HarvestLogs extends LogsBaseCommand
                         ];
 
                         array_push($batch_log_migration_import, $new_log_migration);
-                        $this->info($number . '. ' . json_encode($key_names));
-                        \Log::info($number . '. ' . json_encode($key_names));
+                        $this->info($number . '. ' . json_encode($file_name));
+                        \Log::info($number . '. ' . json_encode($file_name));
                     }
 
                     if (count($batch_log_migration_import) > 0 && count($batch_log_migration_import) <= 100) {
@@ -124,7 +127,9 @@ class HarvestLogs extends LogsBaseCommand
      */
     protected function getArguments()
     {
-        return [];
+        return array(
+            array('bucket', InputArgument::REQUIRED, 'The bucket name'),
+        );
     }
 
     /**
@@ -134,7 +139,10 @@ class HarvestLogs extends LogsBaseCommand
      */
     protected function getOptions()
     {
-        return [];
+        return array(
+            array('prefix', null, InputOption::VALUE_OPTIONAL, 'The prefix name', null),
+            array('log_name', null, InputOption::VALUE_OPTIONAL, 'The specific log name gz', null)
+        );
     }
 
     protected function processBasedOnStatus($status)
