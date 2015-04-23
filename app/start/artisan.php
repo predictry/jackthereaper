@@ -17,5 +17,3 @@
 //Artisan::add(new CheckProcessed());
 //Artisan::add(new ReverseBackupLogs());
 Artisan::add(new ParseLogsIntoJSON());
-//Artisan::add(new MatrixCalculation());
-//Artisan::add(new SessionCalculation());
