@@ -60,6 +60,24 @@ class LogsBaseCommand extends Command
         }
     }
 
+    function getFilename($obj, $log_prefix)
+    {
+        $file_name = "";
+        $key_names = explode('/', $obj['Key']);
+
+        if ($log_prefix) {
+            if (count($key_names) > 0 && ($key_names[0] === $log_prefix)) {
+                if ($key_names[1] === "")
+                    $file_name = "";
+            }
+            $file_name = $key_names[1];
+        }
+        else
+            $file_name = $key_names[0];
+
+        return $file_name;
+    }
+
     function removeRemoteObject($key, $bucket = null)
     {
         try
