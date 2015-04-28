@@ -13,7 +13,8 @@
 
 //Artisan::add(new HarvestActions);
 Artisan::add(new HarvestLogs);
-//Artisan::add(new CheckLogs());
+Artisan::add(new CheckLogs());
 //Artisan::add(new CheckProcessed());
 //Artisan::add(new ReverseBackupLogs());
 Artisan::add(new ParseLogsIntoJSON());
+Artisan::add(new CheckLogsFile());
