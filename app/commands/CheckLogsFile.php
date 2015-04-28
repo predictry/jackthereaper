@@ -42,18 +42,21 @@ class CheckLogsFile extends LogsBaseCommand
     {
         $log_file                   = $this->argument('log_file');
         $batch_log_migration_import = [];
+        $batch_log_migration_update = [];
         try
         {
-            $fh   = fopen(storage_path($log_file), 'r');
-            while ($line = fgets($fh)) {
+            $fh      = fopen(storage_path($log_file), 'r');
+            $counter = 1;
+            while ($line    = fgets($fh)) {
                 $pos = strpos($line, 'Notified LogKeeper of processed file');
                 if ($pos !== false) {
                     $file_name      = substr($line, 81, -2);
                     $log_migration2 = LogMigration2::where('log_name', $file_name)->first();
 
                     if ($log_migration2) {
-                        $log_migration2->status = 'processed';
-                        $log_migration2->update();
+                        $this->info("{$counter}. found on the table {$file_name}");
+                        array_push($batch_log_migration_update, $file_name);
+                        $counter+=1;
                     }
                     else {
                         $new_log_migration = [
@@ -73,6 +76,11 @@ class CheckLogsFile extends LogsBaseCommand
             if (count($batch_log_migration_import) > 0) {
                 LogMigration2::insert($batch_log_migration_import);
                 $batch_log_migration_import = [];
+                DB::reconnect();
+            }
+
+            if (count($batch_log_migration_update) > 0) {
+                LogMigration2::whereIn('log_name', $batch_log_migration_update)->update(array('status' => 'processed'));
                 DB::reconnect();
             }
         }
