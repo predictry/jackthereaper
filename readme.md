@@ -4,7 +4,7 @@ Keeps track of the logs and put the new ones in the queue. For processing to be 
 Also harvest the logs in json and store in s3 bucket analytics and backup
 
 ####Command
-1. php artisan logs:harvest
+###php artisan logs:harvest
 
 Harvest logs file:
 1. push to the queue
@@ -12,10 +12,10 @@ Harvest logs file:
 3. "neumann" notify through API end point and update the status.
 4. aws s3 cp the log file to backup s3 dir
 
-2. php artisan logs:check
+###php artisan logs:check
 Check processed logs and update the status then backup the file into trackings-backup bucket.
 
-3. php artisan logs:parse-to-json
+###php artisan logs:parse-to-json
 Parsing the log file into json formatted and deserialize the query string and push to the s3 buckets (trackings) prefix (action-logs-json-formatted)
 
 sample:
